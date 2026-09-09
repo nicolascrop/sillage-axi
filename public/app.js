@@ -89,9 +89,10 @@ function renderThreads() {
 }
 function placeBubble(target) {
   const rect = target?.getBoundingClientRect();
-  const width = Math.min(410, window.innerWidth - 24);
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+  const width = Math.min(410, viewportWidth - 24);
   $('bubble').style.width = `${width}px`;
-  $('bubble').style.left = `${Math.max(12, Math.min((rect?.right ?? 24) - width / 2, window.innerWidth - width - 12))}px`;
+  $('bubble').style.left = `${Math.max(12, Math.min((rect?.right ?? 24) - width / 2, viewportWidth - width - 12))}px`;
   const top = Math.min(Math.max(rect?.top ?? 80, 65), Math.max(65, window.innerHeight - 240));
   $('bubble').style.top = `${window.scrollY + top + 12}px`;
 }

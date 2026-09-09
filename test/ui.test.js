@@ -281,6 +281,25 @@ test('fallback clearly requires reselect/import; responsive and pointer affordan
   assert.match(css, /:focus-visible/);
 });
 
+test('question bubble fits the usable narrow viewport', async t => {
+  const app = createApp({ dbPath: temporaryDb(t) });
+  app.store.importReport({ title: 'Narrow', source: 'A passage.' });
+  app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening');
+  t.after(() => new Promise(resolve => app.server.close(resolve)));
+  const ui = await reader(`http://127.0.0.1:${app.server.address().port}`, window => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    Object.defineProperty(window.document.documentElement, 'clientWidth', { configurable: true, value: 375 });
+    window.HTMLElement.prototype.getBoundingClientRect = function () {
+      return { top: 100, right: 195 };
+    };
+  });
+  t.after(() => ui.dom.window.close());
+  ui.$('report').querySelector('p').click();
+  const bubble = ui.$('bubble');
+  const right = Number.parseFloat(bubble.style.left) + Number.parseFloat(bubble.style.width);
+  assert.ok(right <= 375, `bubble right edge ${right} exceeds client width`);
+});
+
 test('an open durable discussion updates safely through matches and ambiguity without losing provenance', async t => {
   const app = createApp({ dbPath: temporaryDb(t) });
   const first = app.store.importReport({ title: 'Report', source: '# H\n\nKeep this.\n\nAnother passage.' });
