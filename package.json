@@ -1,0 +1,23 @@
+{
+  "name": "sillage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A local-only Markdown report reader with durable passage conversations",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "fake-agent": "node src/fake-agent.js",
+    "test": "node --test",
+    "check": "node --check src/render.js && node --check src/store.js && node --check src/server.js && node --check src/fake-agent.js && node --check public/app.js"
+  },
+  "dependencies": {
+    "markdown-it": "14.3.1",
+    "sanitize-html": "2.17.7"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0"
+  }
+}

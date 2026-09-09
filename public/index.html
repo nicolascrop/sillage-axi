@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sillage · local report reader</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div><strong>Sillage</strong><span class="muted"> Local report reader · no external agent</span></div>
+    <button id="import-toggle" type="button">Import / new revision</button>
+  </header>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <button id="reload" type="button" hidden>Load latest revision</button>
+  <section id="import-panel" aria-label="Import a Markdown report">
+    <form id="import-form">
+      <h1>Open one Markdown report</h1>
+      <p>Everything stays on this PC. Importing again creates a revision of this report; old questions are kept.</p>
+      <label>Markdown file <input id="file" type="file" accept=".md,.markdown,text/markdown,text/plain"></label>
+      <label>Report name <input id="title" type="text" maxlength="200" required value="My report"></label>
+      <label>Or paste Markdown <textarea id="source" rows="8" required maxlength="1000000" placeholder="# Report title&#10;&#10;Paste your report here…"></textarea></label>
+      <button id="import-submit" type="submit">Import revision</button>
+    </form>
+  </section>
+  <div class="layout">
+    <nav class="toc-panel" aria-label="Table of contents"><h2>Contents</h2><ol id="toc"></ol></nav>
+    <main id="reader">
+      <div class="report-header"><h1 id="report-title">Your reading space</h1><p id="revision" class="muted"></p></div>
+      <p class="hint">Click a passage (or focus it and press Enter) to ask. Select a short quote to narrow the context. Links still work normally.</p>
+      <article id="report" aria-label="Markdown report"></article>
+    </main>
+    <aside class="threads-panel" aria-label="Saved conversations">
+      <h2>Threads <span id="thread-count" class="muted"></span></h2>
+      <label>Show <select id="thread-filter"><option value="active">Open / unread / to review</option><option value="all">All threads</option></select></label>
+      <div id="threads"></div>
+    </aside>
+  </div>
+  <section id="bubble" role="dialog" aria-labelledby="bubble-title" hidden>
+    <header><h2 id="bubble-title">Ask about this passage</h2><button id="bubble-close" type="button" aria-label="Close question bubble">×</button></header>
+    <p id="bubble-anchor" class="muted"></p>
+    <blockquote id="bubble-quote"></blockquote>
+    <p id="bubble-status" role="status" aria-live="polite"></p>
+    <div id="messages"></div>
+    <form id="question-form">
+      <label>Your question <textarea id="question" rows="3" maxlength="4000" required></textarea></label>
+      <button id="question-submit" type="submit">Save question</button>
+    </form>
+    <div class="bubble-actions">
+      <button id="go-source" type="button" hidden>Show source passage</button>
+      <button id="mark-read" type="button" hidden>Mark read</button>
+      <button id="close-thread" type="button" hidden>Close thread</button>
+    </div>
+    <details id="snapshot" hidden><summary>Original source snapshot</summary><pre id="snapshot-text"></pre></details>
+  </section>
+</body>
+</html>
