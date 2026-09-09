@@ -1,28 +1,12 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export function localUrl(value) {
-  const url = new URL(value);
-  if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(url.hostname) ||
-      url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
-    throw new Error('Agent URL must be an http://127.0.0.1:PORT or http://localhost:PORT origin');
-  }
-  return url.origin;
-}
+import { localClient } from './agent-client.js';
+export { localUrl } from './agent-client.js';
 
 /** One finite poll, no network beyond loopback, no secrets, no provider SDK. */
 export async function runFakeAgent(base = 'http://127.0.0.1:3210') {
-  const origin = localUrl(base);
-  const post = async (path, body) => {
-    const response = await fetch(`${origin}${path}`, {
-      method: 'POST', redirect: 'error',
-      headers: { 'Content-Type': 'application/json', 'X-Sillage-Local': '1' },
-      body: JSON.stringify(body), signal: AbortSignal.timeout(10_000),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(`${response.status}: ${data.error}`);
-    return data;
-  };
+  const post = localClient(base);
   const { request } = await post('/api/agent/reserve', { worker: 'deterministic-fake-v1', lease_seconds: 60 });
   if (!request) return { status: 'idle' };
   const answer = await post(`/api/agent/requests/${request.request_id}/answer`, {

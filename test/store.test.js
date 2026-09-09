@@ -7,10 +7,30 @@ import { DatabaseSync } from 'node:sqlite';
 test('unknown future database schema is refused rather than overwritten', t => {
   const path = temporaryDb(t);
   const db = new DatabaseSync(path);
-  db.exec('PRAGMA user_version=2');
-  assert.throws(() => new Store(path), /Unsupported Sillage database schema 2/);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 2);
+  db.exec('PRAGMA user_version=3');
+  assert.throws(() => new Store(path), /Unsupported Sillage database schema 3/);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 3);
   db.close();
+});
+
+test('schema v1 gains a nonmanaged reservation marker during migration', t => {
+  const path = temporaryDb(t);
+  const db = new DatabaseSync(path);
+  db.exec(`CREATE TABLE requests (
+    id TEXT PRIMARY KEY, thread_id TEXT NOT NULL UNIQUE,
+    client_key TEXT NOT NULL UNIQUE, payload_hash TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('waiting','reserved','answered','failed')),
+    worker TEXT, lease_token TEXT, lease_until INTEGER, attempts INTEGER NOT NULL DEFAULT 0,
+    answer_hash TEXT, created_at INTEGER NOT NULL
+  ); PRAGMA user_version=1`);
+  db.close();
+  const store = new Store(path);
+  try {
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 2);
+    const managed = store.db.prepare('PRAGMA table_info(requests)').all().find(column => column.name === 'managed');
+    assert.deepEqual({ name: managed.name, notnull: managed.notnull, dflt_value: managed.dflt_value },
+      { name: 'managed', notnull: 1, dflt_value: '0' });
+  } finally { store.close(); }
 });
 
 function seed(store) { return store.importReport({ title: 'Report', source: '# H\n\nExact context.\n\nUnchanged.' }); }
@@ -139,5 +159,17 @@ test('regeneration keeps exact relationships but never drifts a changed, deleted
     store.updateThread(thread.id, { unread: false, closed: true });
     assert.equal(store.thread(thread.id).closed, 1);
     assert.equal(store.thread(thread.id).messages.length, 2);
+  } finally { store.close(); }
+});
+
+test('compare-and-import guards file watching against concurrent revisions without changing manual v1 imports', () => {
+  const store = new Store(':memory:');
+  try {
+    const first = store.importReport({ title: 'Français', source: 'Bonjour.', expected_revision_id: null });
+    const second = store.importReport({ title: 'Français', source: 'Bonjour à tous.', expected_revision_id: first.id });
+    assert.throws(() => store.importReport({ title: 'Français', source: 'Ancien fichier.', expected_revision_id: first.id }), { status: 409 });
+    assert.equal(store.current().id, second.id);
+    assert.equal(store.current().source, 'Bonjour à tous.');
+    assert.equal(store.importReport({ title: 'Français', source: 'Bonjour à tous.' }).id, 3);
   } finally { store.close(); }
 });

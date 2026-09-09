@@ -11,7 +11,13 @@ X-Sillage-Local: 1
 
 The service only binds `127.0.0.1`. `Host` must be `127.0.0.1:PORT` or `localhost:PORT`; a supplied `Origin` must exactly match that HTTP origin. No cross-origin browser API, CORS, or arbitrary filesystem access is available. There is no local-user authentication: other programs on this PC can use the protocol.
 
-## 1. Reserve the next question
+## Managed active-local-agent lifecycle
+
+For visible real-agent presence and bounded terminal failures, use the [local-agent connection guide](local-agent.md): connect once, heartbeat every 5 seconds, reserve using the returned `session_id`, then post through the unchanged answer endpoint. The optional `npm run local-agent` JSONL bridge maintains that loop for an already-running local reasoner; it does not run a model or invent replies.
+
+Managed presence expires after 20 seconds, and managed reservations have a fixed 120-second answering deadline. Disconnect, expiry or service restart terminally fails exact unfinished managed work. Queued unclaimed questions remain saved and explicitly unavailable in the UI. Presence is ephemeral; only one service per database is supported. Legacy reservations below retain their original reclaim behavior and do **not** indicate active presence. Legacy/demo reservation attempts return 409 while a managed worker is connected.
+
+## 1. Reserve the next question (legacy / demo)
 
 ```sh
 curl -s http://127.0.0.1:3210/api/agent/reserve \
@@ -82,10 +88,11 @@ These are **storage idempotency and exclusive lease semantics**, not exactly-onc
 
 ## Reader endpoints
 
+- `GET /api/state` → current `revision_id` (or null) plus active/unavailable agent presence; no report content or session handle. Readers poll this for live updates.
 - `GET /api/document` → current revision, sanitized HTML, TOC, block records and source; `null` before import.
-- `POST /api/document` with `{title,source}` → 201 new revision. **Every import** creates a revision, even identical source. This endpoint is not idempotent.
+- `POST /api/document` with `{title,source}` → 201 new revision. **Every import** creates a revision, even identical source. This endpoint is not idempotent. Optional `expected_revision_id` (integer, or null before first import) enables atomic compare-and-import: a different current revision returns 409 without writing. Browser manual imports and authorized file observation use this guard.
 - `POST /api/questions` with `{revision_id,block_id,quote,question,client_key}` → 201 durable thread, user message and waiting request. `client_key` is reader-generated (UUID recommended). Retrying the same key and exact question payload returns the existing thread; different content under the key returns 409. Old revisions remain valid for old-tab drafts. The initial commit happens before acknowledging “saved”.
-- `GET /api/threads` / `GET /api/threads/THREAD_ID` → original references, exact quote/context, messages/citations, unread/closed flags, `request_status`, attempts/lease deadline, `current_revision_id`, and `anchor_status` (`matched` or `needs_review`). There is no deletion or fuzzy remap endpoint.
+- `GET /api/threads` / `GET /api/threads/THREAD_ID` → original references, exact quote/context, messages/citations, unread/closed flags, `request_status`, attempts/lease deadline and `worker` (including `deterministic-fake-v1` for the demo), `current_revision_id`, and `anchor_status` (`matched` or `needs_review`). There is no deletion or fuzzy remap endpoint.
 - `PATCH /api/threads/THREAD_ID` with boolean `{unread:false}` or `{closed:true}` → updated thread. Closing is reader organization, **not cancellation**; replies still persist and mark it unread.
 
 Errors are JSON `{"error":"description"}`: 400 invalid input, 403 local-origin boundary, 404 missing route/object, 409 idempotency/lease conflict, 413 body over 2 MB, 415 wrong content type/custom header, 500 local server/storage error. API responses are not cached. The prototype retains full revision history; there is no automatic deletion or compaction policy.

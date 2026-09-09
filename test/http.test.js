@@ -72,7 +72,7 @@ test('HTTP surface rejects foreign origins, DNS rebinding, form CSRF, paths and 
     headers: { 'Content-Type': 'application/json', 'X-Sillage-Local': '1' }, body: 'x'.repeat(2_000_001) })).status, 413);
   assert.equal((await fetch(app.origin + '/src/store.js')).status, 404);
   const page = await fetch(app.origin);
-  assert.match(page.headers.get('content-security-policy'), /img-src 'none'/);
+  assert.match(page.headers.get('content-security-policy'), /img-src 'self'/);
   assert.equal(page.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(page.headers.get('access-control-allow-origin'), null);
   assert.match(await page.text(), /Sillage/);
@@ -87,10 +87,43 @@ test('simultaneous HTTP pollers receive at most one live reservation', async t =
   assert.equal(results.filter(r => r.request).length, 1);
 });
 
+test('legacy HTTP reservations cannot self-declare managed ownership', async t => {
+  const app = await start(temporaryDb(t));
+  t.after(() => stop(app));
+  const doc = await post(app.origin, '/api/document', { title: 'Test', source: 'Exact context.' });
+  await post(app.origin, '/api/questions', questionInput(doc));
+  const { request } = await post(app.origin, '/api/agent/reserve', {
+    worker: 'local-session:legacy', managed: true,
+  });
+  assert.equal(app.store.db.prepare('SELECT managed FROM requests WHERE id=?').get(request.request_id).managed, 0);
+});
+
 test('fake adapter refuses non-loopback destinations and credential-bearing URLs', () => {
   assert.equal(localUrl('http://127.0.0.1:3210'), 'http://127.0.0.1:3210');
   for (const value of ['https://example.test', 'http://example.test', 'http://127.0.0.1.evil.test',
     'http://secret@localhost:3210', 'http://localhost:3210/path', 'file:///etc/passwd']) {
     assert.throws(() => localUrl(value));
   }
+});
+
+test('bundled mark is a fixed safe asset, not an SVG or filesystem upload surface', async t => {
+  const app = await start(temporaryDb(t));
+  t.after(() => stop(app));
+  const response = await fetch(app.origin + '/sillage.svg');
+  assert.equal(response.headers.get('content-type'), 'image/svg+xml');
+  const svg = await response.text();
+  assert.match(svg, /<svg.*viewBox="0 0 32 32"/);
+  assert.doesNotMatch(svg, /<(?:script|image|foreignObject|style|use|animate)|\bon\w+=|\bhref=|url\(/i);
+  assert.deepEqual([...svg.matchAll(/<([a-zA-Z]+)/g)].map(m => m[1]), ['svg', 'rect', 'path']);
+  const page = await (await fetch(app.origin)).text();
+  assert.match(page, /rel="icon" href="\/sillage.svg"/);
+  assert.match(page, /src="\/sillage.svg" width="28" height="28" alt=""/);
+  assert.equal((await fetch(app.origin + '/private-report.md')).status, 404);
+  const state = await (await fetch(app.origin + '/api/state')).json();
+  assert.equal(state.revision_id, null);
+  assert.equal(state.agent.state, 'unavailable');
+  assert.equal((await fetch(app.origin + '/api/agent/connect', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Sillage-Local': '1', Origin: 'https://evil.test' },
+    body: '{"worker":"bad"}' })).status, 403);
+  assert.equal((await fetch(app.origin + '/api/agent/heartbeat', { method: 'POST', body: '{}' })).status, 415);
 });

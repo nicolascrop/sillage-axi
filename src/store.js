@@ -27,9 +27,13 @@ export class Store {
     this.now = now;
     this.db = new DatabaseSync(path);
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (![0, 1].includes(version)) {
+    if (![0, 1, 2].includes(version)) {
       this.db.close();
       throw new Error(`Unsupported Sillage database schema ${version}; refusing to change it`);
+    }
+    const requestColumns = new Set(this.db.prepare('PRAGMA table_info(requests)').all().map(column => column.name));
+    if (version < 2 && requestColumns.size > 0 && !requestColumns.has('managed')) {
+      this.db.exec('ALTER TABLE requests ADD COLUMN managed INTEGER NOT NULL DEFAULT 0');
     }
     this.db.exec(`PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;
       CREATE TABLE IF NOT EXISTS revisions (
@@ -52,7 +56,7 @@ export class Store {
         id TEXT PRIMARY KEY, thread_id TEXT NOT NULL UNIQUE REFERENCES threads(id),
         client_key TEXT NOT NULL UNIQUE, payload_hash TEXT NOT NULL,
         status TEXT NOT NULL CHECK(status IN ('waiting','reserved','answered','failed')),
-        worker TEXT, lease_token TEXT, lease_until INTEGER, attempts INTEGER NOT NULL DEFAULT 0,
+        worker TEXT, managed INTEGER NOT NULL DEFAULT 0, lease_token TEXT, lease_until INTEGER, attempts INTEGER NOT NULL DEFAULT 0,
         answer_hash TEXT, created_at INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS messages (
@@ -62,7 +66,7 @@ export class Store {
         UNIQUE(thread_id, role)
       );
       CREATE INDEX IF NOT EXISTS request_queue ON requests(status, created_at);
-      PRAGMA user_version=1;
+      PRAGMA user_version=2;
     `);
   }
   close() { this.db.close(); }
@@ -78,11 +82,16 @@ export class Store {
     const revision = this.db.prepare('SELECT * FROM revisions ORDER BY id DESC LIMIT 1').get();
     return revision ? { ...revision, toc: JSON.parse(revision.toc), blocks: this.blocks(revision.id) } : null;
   }
-  importReport({ title, source }) {
+  revisionId() {
+    return this.db.prepare('SELECT MAX(id) AS id FROM revisions').get().id;
+  }
+  importReport({ title, source, expected_revision_id }) {
     text(title, 'title', 200); text(source, 'source', 1_000_000);
     requireValue(source.split('\n').length <= 20_000, 400, 'Report exceeds 20,000 lines');
     return this.transaction(() => {
       const previous = this.current();
+      if (expected_revision_id !== undefined) requireValue(expected_revision_id === (previous?.id ?? null),
+        409, 'The report changed elsewhere. Live file updates paused; review the current report before reconnecting the file.');
       const rendered = renderReport(source, previous?.blocks);
       requireValue(rendered.blocks.length <= 5000, 400, 'Report exceeds 5,000 semantic blocks');
       const revision = Number(this.db.prepare(
@@ -97,7 +106,7 @@ export class Store {
   }
   thread(id) {
     const thread = this.db.prepare(`SELECT t.*, r.id AS request_id, r.status AS request_status,
-      r.attempts, r.lease_until FROM threads t JOIN requests r ON r.thread_id=t.id WHERE t.id=?`).get(id);
+      r.attempts, r.lease_until, r.worker FROM threads t JOIN requests r ON r.thread_id=t.id WHERE t.id=?`).get(id);
     requireValue(thread, 404, 'Thread not found');
     const currentRevision = this.db.prepare('SELECT MAX(id) AS id FROM revisions').get().id;
     const matched = this.db.prepare('SELECT id FROM blocks WHERE revision_id=? AND id=?')
@@ -150,8 +159,9 @@ export class Store {
     }
     return this.thread(id);
   }
-  reserve({ worker, lease_seconds = 60 }) {
+  reserve({ worker, lease_seconds = 60, managed = false }) {
     text(worker, 'worker', 100);
+    requireValue(typeof managed === 'boolean', 400, 'managed must be a boolean');
     requireValue(Number.isInteger(lease_seconds) && lease_seconds >= 5 && lease_seconds <= 300,
       400, 'lease_seconds must be an integer from 5 to 300');
     return this.transaction(() => {
@@ -161,8 +171,8 @@ export class Store {
       if (!request) return null;
       const token = randomUUID();
       const until = now + lease_seconds * 1000;
-      this.db.prepare(`UPDATE requests SET status='reserved',worker=?,lease_token=?,lease_until=?,
-        attempts=attempts+1 WHERE id=?`).run(worker, token, until, request.id);
+      this.db.prepare(`UPDATE requests SET status='reserved',worker=?,managed=?,lease_token=?,lease_until=?,
+        attempts=attempts+1 WHERE id=?`).run(worker, Number(managed), token, until, request.id);
       const thread = this.thread(request.thread_id);
       const document = this.db.prepare('SELECT id,title,source,created_at FROM revisions WHERE id=?')
         .get(thread.revision_id);
@@ -170,6 +180,25 @@ export class Store {
         lease_until: until, attempt: request.attempts + 1, thread_id: thread.id,
         document, block: thread.context.block, quote: thread.quote, context: thread.context,
         question: thread.messages[0].body, anchor_status: thread.anchor_status };
+    });
+  }
+  recoverLocalReservations() {
+    const abandoned = this.db.prepare("SELECT id AS request_id,lease_token FROM requests WHERE status='reserved' AND managed=1").all();
+    for (const request of abandoned) this.failReservation(request,
+      'The local service restarted before the agent finished. Reconnect and ask again.');
+  }
+  // Internal lifecycle failure only: compare the exact reservation so a timeout
+  // never overwrites another worker's lease or an already terminal result.
+  failReservation(request, body) {
+    return this.transaction(() => {
+      const row = this.db.prepare('SELECT * FROM requests WHERE id=?').get(request.request_id);
+      if (!row || row.status !== 'reserved' || row.lease_token !== request.lease_token) return false;
+      this.db.prepare(`INSERT INTO messages(id,thread_id,role,body,citations,status,created_at)
+        VALUES(?,?,'agent',?,'[]','failed',?)`).run(randomUUID(), row.thread_id, body, this.now());
+      this.db.prepare("UPDATE requests SET status='failed',answer_hash=? WHERE id=?")
+        .run(digest({ status: 'failed', body, citations: [] }), row.id);
+      this.db.prepare('UPDATE threads SET unread=1 WHERE id=?').run(row.thread_id);
+      return true;
     });
   }
   answer(id, { lease_token, status, body, citations = [] }) {

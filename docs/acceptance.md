@@ -79,3 +79,21 @@ git diff --check
 - Ad hoc documentation checks used installed PyYAML to parse the skill frontmatter, Markdown-it to parse Markdown and check local links/heading anchors, and `bash -n` for shell fences. JSON fences parsed successfully. No dedicated Markdown linter or documentation-check script is configured in the project.
 - Executed the skill's actual `curl` examples against a separate loopback service process, substituting only the configured port and returned IDs/tokens. Verified import, passage lookup, question retry, reservation, cited answer, identical-answer retry, and empty queue. Restarted that process with the same database and verified persistence; imported `examples/report-changed.md` and verified `needs_review` with the original context intact. An old-revision question in a closed thread still received a labeled fake-agent answer citing the original revision; the next fake-agent invocation reported idle. A separate request stored an explicit terminal failure. The test service was stopped afterward; all private artifacts remain under ignored `.data/public-docs/`.
 - `chrome-devtools-axi` was not available in this lane or the inspected Windows host tool installation. **No additional real-browser validation is claimed**; the layout, scrolling, browser CSP, and accessibility limitations above still apply. The listener was never exposed beyond loopback.
+
+## Material Darker Air / local-agent / live-revision iteration
+
+Validation in the isolated `fm/sillage-ui-feedback-adjustments` worktree:
+
+```sh
+npm test
+npm run check
+git diff --check
+```
+
+- **37 tests passed, 0 failed** before delivery validation. All HTTP remains loopback, with disposable SQLite databases; no model, provider, external fetch, secret or reader report was used.
+- New lifecycle tests exercise the actual JSONL bridge with separately supplied fixture replies, queue draining, active/unavailable states, explicit readiness, disconnect/EOF, heartbeat expiry, terminal deadlines, stale results, and service-restart recovery. A bridge process alone is not advertised as an agent. This validates transport, **not local-model inference**; an already-running fully local reasoner must be connected separately.
+- New reader DOM tests cover hidden-by-default compact title/topic entries, toggle state, visible active/unavailable and connection instructions, literal untrusted worker/reply text, Ask question wording, live imports with no threads, French Markdown, safe-anchor scroll-offset calculation, unchanged-poll DOM identity, old-revision drafts and explicit review state, and preserved durable discussions.
+- File-capability fixtures verify no disk observation before selection, read-only handle use, unchanged-content deduplication, automatic updates, stop, mismatching-file rejection, conflict pause and permission loss. Store tests exercise atomic compare-and-import against stale revision IDs. Ordinary file input fallback explicitly requires reselect/import; it is not falsely called watching.
+- Static CSS assertions check readable prose width, narrow-screen stacking, horizontal table overflow, pointer and focus affordances. HTTP checks verify the fixed bundled SVG mark has only svg/rect/path elements, no active or external references, a local favicon/header use, no arbitrary report asset endpoint, same-origin CSP and protected lifecycle writes.
+- `chrome-devtools-axi` is not available in this lane. **No real-browser visual, native File System Access, scroll-anchoring or accessibility inspection is claimed.** jsdom geometry and file handles are controlled fixtures, not proof of native layout/permission behavior. A manual wide/narrow browser pass remains necessary; browser background throttling and editor file replacement can delay or interrupt explicit disk observation, as documented in the README.
+- The single implemented direction is Material Darker Air. Plum & Amber is documentation only. No Yuba/Lavish files, second report, Delta translation, external provider or unrelated local-only capture surface was introduced.

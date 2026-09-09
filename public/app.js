@@ -5,6 +5,9 @@ let bubble = null;
 let polling = false;
 let importing = false;
 let selectionHandled = false;
+let agent = { state: 'unavailable' };
+let watchedFile = null;
+let watchGeneration = 0;
 
 async function api(path, body, method = 'POST') {
   const response = await fetch(path, body === undefined ? {} : {
@@ -29,7 +32,7 @@ function nearestPassage(element) {
 function renderDocument(value) {
   report = value;
   $('import-panel').hidden = Boolean(value);
-  $('reload').hidden = true;
+  $('import-toggle').setAttribute('aria-expanded', String(!value));
   if (!value) return;
   $('report-title').textContent = value.title;
   $('revision').textContent = `Revision ${value.id} · ${value.blocks.length} addressable passages · saved on this PC`;
@@ -44,6 +47,23 @@ function renderDocument(value) {
     return item;
   }));
 }
+function compact(value, max) {
+  const text = value.replace(/\s+/gu, ' ').trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+function drawAgent(value) {
+  agent = value;
+  $('agent-state').textContent = value.state === 'active' ? 'Local agent · active' : 'Local agent · unavailable';
+  $('agent-toggle').dataset.state = value.state;
+  $('agent-detail').textContent = value.state === 'active'
+    ? `${value.worker} is connected locally${value.busy ? ' and answering a question' : ' and ready for queued questions'}.`
+    : 'No local agent is connected. Questions stay saved in the queue, but will not answer themselves. Follow the start path below.';
+  if (bubble && !bubble.threadId) {
+    $('bubble-agent').hidden = value.state === 'active';
+    if (!bubble.saving && !bubble.payload) $('bubble-status').textContent = value.state === 'active'
+      ? 'Draft — local agent active' : 'Draft — local agent unavailable; you can still queue your question';
+  }
+}
 function labels(thread) {
   return [thread.closed ? 'closed' : 'open', thread.unread ? 'unread' : '',
     thread.anchor_status === 'needs_review' ? 'passage to review' : '',
@@ -51,13 +71,17 @@ function labels(thread) {
 }
 function renderThreads() {
   const visible = threads.filter(t => $('thread-filter').value === 'all' || !t.closed || t.unread || t.anchor_status === 'needs_review');
-  $('thread-count').textContent = `(${visible.length})`;
+  $('thread-count').textContent = `(${threads.length})`;
+  const unread = threads.filter(t => t.unread).length;
+  const review = threads.filter(t => t.anchor_status === 'needs_review').length;
+  $('thread-alert').textContent = [unread ? `${unread} unread` : '', review ? `${review} to review` : ''].filter(Boolean).map(s => ` · ${s}`).join('');
   $('threads').replaceChildren(...visible.map(thread => {
-    const button = node('button', undefined, 'thread-card');
+    const button = node('button', undefined, 'thread-entry');
     button.type = 'button';
     button.dataset.threadId = thread.id;
-    button.append(node('span', labels(thread), thread.anchor_status === 'needs_review' ? 'review' : 'muted'),
-      node('strong', thread.messages[0].body.slice(0, 110)), node('q', thread.quote.slice(0, 100)));
+    button.append(node('strong', compact(thread.messages[0].body, 72)),
+      node('span', `About: ${compact(thread.context.block.text || thread.quote, 100)}`, 'thread-summary'),
+      node('span', labels(thread), `thread-labels ${thread.anchor_status === 'needs_review' ? 'review' : 'muted'}`));
     button.addEventListener('click', () => openThread(thread));
     return button;
   }));
@@ -65,9 +89,10 @@ function renderThreads() {
 }
 function placeBubble(target) {
   const rect = target?.getBoundingClientRect();
-  const width = Math.min(410, window.innerWidth - 24);
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+  const width = Math.min(410, viewportWidth - 24);
   $('bubble').style.width = `${width}px`;
-  $('bubble').style.left = `${Math.max(12, Math.min((rect?.right ?? 24) - width / 2, window.innerWidth - width - 12))}px`;
+  $('bubble').style.left = `${Math.max(12, Math.min((rect?.right ?? 24) - width / 2, viewportWidth - width - 12))}px`;
   const top = Math.min(Math.max(rect?.top ?? 80, 65), Math.max(65, window.innerHeight - 240));
   $('bubble').style.top = `${window.scrollY + top + 12}px`;
 }
@@ -95,7 +120,8 @@ function openQuestion(element, quote) {
   $('bubble-anchor').classList.remove('review');
   $('bubble-anchor').textContent = `Revision ${report.id} · ${block.kind} · lines ${block.start_line}–${block.end_line}`;
   $('bubble-quote').textContent = exact;
-  $('bubble-status').textContent = 'Draft — not saved yet';
+  $('bubble-status').textContent = agent.state === 'active' ? 'Draft — local agent active' : 'Draft — local agent unavailable; you can still queue your question';
+  $('bubble-agent').hidden = agent.state === 'active';
   $('messages').replaceChildren();
   $('question-form').hidden = false;
   $('question').value = '';
@@ -106,7 +132,7 @@ function openQuestion(element, quote) {
   $('question').focus({ preventScroll: true });
 }
 function drawThread(thread) {
-  const signature = JSON.stringify(thread);
+  const signature = JSON.stringify([thread, agent.state]);
   if (bubble?.drawn === signature) return;
   if (bubble) bubble.drawn = signature;
   $('bubble-title').textContent = 'Saved conversation';
@@ -115,14 +141,18 @@ function drawThread(thread) {
     : `Original revision ${thread.revision_id} · passage still matched in revision ${thread.current_revision_id}`;
   $('bubble-anchor').classList.toggle('review', thread.anchor_status === 'needs_review');
   $('bubble-quote').textContent = thread.quote;
-  $('bubble-status').textContent = thread.request_status === 'waiting' ? 'Saved locally / waiting for an agent' :
-    thread.request_status === 'reserved' ? 'Saved locally / reserved by an agent (lease expires if abandoned)' :
-      thread.request_status === 'failed' ? 'Saved locally / agent reported failure' : 'Saved locally / answered';
+  const demo = thread.worker === 'deterministic-fake-v1';
+  $('bubble-status').textContent = thread.request_status === 'waiting'
+    ? (agent.state === 'active' ? 'Saved locally / waiting in the active local agent’s queue' : 'Saved locally / waiting — local agent unavailable. Connect a local agent to receive an answer.')
+    : thread.request_status === 'reserved' ? (demo ? 'Demo adapter processing — not AI' : 'Saved locally / agent working (time-limited reservation)')
+      : thread.request_status === 'failed' ? 'Saved locally / answering failed — see explanation below'
+        : demo ? 'Saved locally / demo result — not an AI answer' : 'Saved locally / answered';
+  $('bubble-agent').hidden = agent.state === 'active' || !['waiting', 'reserved'].includes(thread.request_status);
   $('question-form').hidden = true;
   $('messages').replaceChildren(...thread.messages.map(message => {
     const item = node('section', undefined, 'message');
     // Questions, replies, and citation quotes are always plain text, never HTML.
-    item.append(node('strong', message.role === 'user' ? 'You' : 'Local agent'), node('p', message.body));
+    item.append(node('strong', message.role === 'user' ? 'You' : demo ? 'Demo adapter · not AI' : message.status === 'failed' ? 'Local answering failure' : 'Local agent'), node('p', message.body));
     for (const citation of message.citations) {
       const link = node('button', `Citation · revision ${citation.revision_id}: “${citation.quote}”`, 'citation');
       link.type = 'button';
@@ -156,25 +186,145 @@ async function openThread(thread) {
     catch (error) { notice(error.message); }
   }
 }
+function updateDocument(value) {
+  if (report?.id === value?.id) return;
+  const y = window.scrollY;
+  const focusId = document.activeElement?.dataset.blockId;
+  const safeIds = new Set(value?.blocks.map(b => b.id));
+  const top = document.querySelector('.topbar').getBoundingClientRect().bottom + 16;
+  const candidates = [...$('report').querySelectorAll('[data-block-id]')]
+    .map(element => ({ id: element.dataset.blockId, top: element.getBoundingClientRect().top }))
+    .filter(item => safeIds.has(item.id));
+  candidates.sort((a, b) => Math.abs(a.top - top) - Math.abs(b.top - top));
+  const anchor = candidates[0];
+  const wasImporting = !$('import-panel').hidden;
+  renderDocument(value);
+  // Keep an explicitly opened setup panel open during background updates.
+  if (wasImporting && !importing) {
+    $('import-panel').hidden = false;
+    $('import-toggle').setAttribute('aria-expanded', 'true');
+  }
+  if (anchor) window.scrollBy(0, passageElement(anchor.id).getBoundingClientRect().top - anchor.top);
+  else window.scrollTo(0, y);
+  if (focusId) passageElement(focusId)?.focus({ preventScroll: true });
+  if (bubble) {
+    bubble.target = passageElement(bubble.blockId);
+    bubble.target?.classList.add('selected-passage');
+    bubble.drawn = null;
+    if (!bubble.threadId) {
+      $('bubble-anchor').textContent = bubble.target
+        ? `Draft kept against original revision ${bubble.revisionId} · passage safely matched in revision ${report.id}`
+        : `Passage to review — draft kept against original revision ${bubble.revisionId}. No safe current match; asking will preserve the original context.`;
+      $('bubble-anchor').classList.toggle('review', !bubble.target);
+    }
+    placeBubble(bubble.target);
+  }
+  notice(`Revision ${value.id} loaded automatically. ${anchor ? 'Reading position kept at a safely matched passage.' : 'No safe reading anchor; approximate scroll position kept.'} Changed or ambiguous conversations and drafts require review; original context is preserved.`);
+}
+function watchStatus(message) {
+  $('watch-status').textContent = message;
+  $('file-state').textContent = message;
+}
+function stopWatching(message = 'File updates stopped. Imported revisions still appear automatically.') {
+  watchedFile = null;
+  watchGeneration++;
+  $('stop-watch').hidden = true;
+  watchStatus(message);
+}
 async function refreshThreads() {
   if (polling || importing) return;
   polling = true;
   try {
-    threads = await api('/api/threads');
+    const state = await api('/api/state');
+    if (importing) return;
+    drawAgent(state.agent);
+    if (state.revision_id !== (report?.id ?? null)) {
+      if (watchedFile) stopWatching('File updates paused: another import changed the report. Review it, then reconnect the same file explicitly.');
+      const latest = await api('/api/document');
+      if (importing) return;
+      updateDocument(latest);
+    }
+    if (watchedFile) {
+      const watcher = watchedFile;
+      const generation = watchGeneration;
+      try {
+        const file = await watcher.handle.getFile();
+        if (file.size > 1_000_000) throw new Error('Markdown file exceeds 1 MB');
+        const source = await file.text();
+        if (importing || generation !== watchGeneration) return;
+        if (source !== watcher.source) {
+          const value = await api('/api/document', { title: report.title, source, expected_revision_id: report.id });
+          // Once authorized and committed, an update is durable even if Stop was
+          // clicked in flight; a later poll will display it, never re-import it.
+          if (importing || generation !== watchGeneration) return;
+          watcher.source = source;
+          updateDocument(value);
+          watchStatus(`Watching ${file.name} · revision ${value.id} saved locally. Stop any time.`);
+        }
+      } catch (error) { stopWatching(`File updates paused: ${error.message} Reconnect explicitly after reviewing.`); }
+    }
+    const latestThreads = await api('/api/threads');
+    if (importing) return;
+    threads = latestThreads;
     renderThreads();
     if (bubble?.threadId) {
       const thread = threads.find(t => t.id === bubble.threadId);
       if (thread) drawThread(thread);
     }
-    if (report && threads.some(t => t.current_revision_id !== report.id)) {
-      notice('A newer revision was imported in another tab. Your reading position is unchanged.');
-      $('reload').hidden = false;
+  } catch (error) {
+    drawAgent({ state: 'unavailable' });
+    if (bubble?.threadId) {
+      const thread = threads.find(t => t.id === bubble.threadId);
+      if (thread) drawThread(thread);
     }
-  } catch (error) { notice(`Local service unavailable. Saved threads remain on disk. ${error.message}`); }
-  finally { polling = false; }
+    notice(`Local service unavailable. Saved threads remain on disk. ${error.message}`);
+  } finally { polling = false; }
 }
 
-$('import-toggle').addEventListener('click', () => { $('import-panel').hidden = !$('import-panel').hidden; });
+function togglePanel(panel, button) {
+  $(panel).hidden = !$(panel).hidden;
+  $(button).setAttribute('aria-expanded', String(!$(panel).hidden));
+}
+$('import-toggle').addEventListener('click', () => togglePanel('import-panel', 'import-toggle'));
+$('agent-toggle').addEventListener('click', () => togglePanel('agent-panel', 'agent-toggle'));
+$('bubble-agent').addEventListener('click', () => {
+  $('agent-panel').hidden = false;
+  $('agent-toggle').setAttribute('aria-expanded', 'true');
+  $('agent-toggle').focus({ preventScroll: true });
+  $('agent-panel').scrollIntoView({ block: 'start' });
+});
+$('threads-toggle').addEventListener('click', () => {
+  togglePanel('threads-panel', 'threads-toggle');
+  $('layout').classList.toggle('threads-open', !$('threads-panel').hidden);
+});
+if (typeof window.showOpenFilePicker !== 'function') {
+  $('watch-file').disabled = true;
+  watchStatus('Live imported revisions · on. Disk watching unavailable in this browser: reselect the file and Import revision after edits, or use the local relay. File selection alone is only a snapshot.');
+} else {
+  watchStatus('Live imported revisions · on. No file connected for disk updates; use Import / new revision to connect one explicitly.');
+}
+$('watch-file').addEventListener('click', async () => {
+  if (!report) { notice('Import the report first, then connect that same file.'); return; }
+  stopWatching();
+  const generation = watchGeneration;
+  const revision = report.id;
+  try {
+    const [handle] = await window.showOpenFilePicker({ multiple: false, types: [
+      { description: 'Markdown report', accept: { 'text/markdown': ['.md', '.markdown'] } },
+    ] });
+    const file = await handle.getFile();
+    if (file.size > 1_000_000) throw new Error('Choose a Markdown file under 1 MB');
+    const source = await file.text();
+    if (generation !== watchGeneration) return;
+    if (revision !== report.id || source !== report.source) throw new Error('File does not exactly match the current report. Import it explicitly as a new revision first');
+    watchedFile = { handle, source };
+    $('stop-watch').hidden = false;
+    watchStatus(`Watching ${file.name} · read-only, in this tab only. Stop any time.`);
+  } catch (error) {
+    if (generation === watchGeneration && error.name !== 'AbortError') stopWatching(error.message);
+  }
+});
+$('stop-watch').addEventListener('click', () => stopWatching());
 $('file').addEventListener('change', async () => {
   const file = $('file').files[0];
   if (!file) return;
@@ -184,20 +334,16 @@ $('file').addEventListener('change', async () => {
 });
 $('import-form').addEventListener('submit', async event => {
   event.preventDefault();
-  if (!closeBubble()) return;
+  if (importing) return;
   importing = true;
+  stopWatching();
   $('import-submit').disabled = true;
   try {
-    renderDocument(await api('/api/document', { title: $('title').value, source: $('source').value }));
-    notice(`Revision ${report.id} saved. Changed or ambiguous passages are marked for review, never moved silently.`);
+    updateDocument(await api('/api/document', { title: $('title').value, source: $('source').value,
+      expected_revision_id: report?.id ?? null }));
   } catch (error) { notice(error.message); }
   finally { importing = false; $('import-submit').disabled = false; }
   await refreshThreads();
-});
-$('reload').addEventListener('click', async () => {
-  if (!closeBubble()) return;
-  try { renderDocument(await api('/api/document')); await refreshThreads(); }
-  catch (error) { notice(error.message); }
 });
 $('report').addEventListener('click', event => {
   if (selectionHandled) { selectionHandled = false; return; }
