@@ -13,7 +13,7 @@ npm start
 
 Open **http://127.0.0.1:3210**. Import `examples/report.md`, choose another UTF-8 Markdown file, or paste Markdown. Installing dependencies needs a registry connection once; running the app, fake agent, and tests afterward needs **no internet or secrets**. There are no CDN assets or external image requests.
 
-In another terminal, answer **one** queued question deterministically:
+For a separate deterministic transport demo, answer **one** queued question in another terminal while no managed agent is connected:
 
 ```sh
 npm run fake-agent
@@ -85,7 +85,7 @@ Changed, deleted, split, merged, or ambiguous blocks get fresh IDs. Unmatched th
 
 - **Rendering:** Markdown-it with raw HTML disabled, then a strict sanitize-html allowlist. Agent replies/questions/citations use DOM `textContent`, never HTML. Images are explicit text placeholders, not network fetches. Relative file links are inert; generated Contents links work. Raw HTML, SVG, and arbitrary embeds do not execute.
 - **Local boundary:** hard-bound to IPv4 loopback, strict Host/Origin checks, no CORS, JSON plus a required custom write header, restrictive CSP, and no filesystem-serving endpoint. Other processes running as the local user can access the API; this is not an authentication or hostile-machine sandbox. Do not reverse-proxy or expose it to a LAN/public interface.
-- **Storage/protocol:** `src/store.js` owns SQLite transactions, snapshots, idempotency and leases. `src/server.js` exposes the local HTTP boundary. See [the v1 agent protocol](docs/agent-protocol.md) before writing an adapter. Full document text is supplied locally to a reserved worker; adopting any external provider needs a separate privacy decision.
+- **Storage/protocol:** `src/store.js` owns SQLite transactions, snapshots, idempotency and leases; `src/relay.js` owns the managed local-agent lifecycle; and `src/server.js` exposes the local HTTP boundary. See [the v1 agent protocol](docs/agent-protocol.md) before writing an adapter. Full document text is supplied locally to a reserved worker; adopting any external provider needs a separate privacy decision.
 - **Agent trust:** report Markdown, questions, and agent replies are data, not executable instructions or permission to modify a project. Preserve the original revision and passage references; never silently move a thread to regenerated text. Do not put secrets in reports, questions, replies, or citations.
 - **Diagrams:** an `excalidraw` code fence becomes an explicit **Unsupported diagram · Excalidraw** figure with preserved, escaped source. The extension points are `codeRenderer` in `src/render.js` and `[data-diagram="excalidraw"]` in the reader. A future read-only, locally bundled established Excalidraw-compatible component can consume validated scene JSON there. It must preserve the enclosing block identity, bound scene complexity, and prevent remote images/fonts/links from auto-loading. No custom diagram editor or unsafe SVG/HTML fallback is included.
 - **UI:** plain JavaScript/CSS, Material Darker Air palette; no build, WebSockets, streaming, shell execution, vector search, or provider SDK.

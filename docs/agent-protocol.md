@@ -17,6 +17,8 @@ For visible real-agent presence and bounded terminal failures, use the [local-ag
 
 Managed presence expires after 20 seconds, and managed reservations have a fixed 120-second answering deadline. Disconnect, expiry or service restart terminally fails exact unfinished managed work. Queued unclaimed questions remain saved and explicitly unavailable in the UI. Presence is ephemeral; only one service per database is supported. Legacy reservations below retain their original reclaim behavior and do **not** indicate active presence. Legacy/demo reservation attempts return 409 while a managed worker is connected.
 
+Managed ownership is recorded by a private `managed` reservation marker. Restart recovery fails only unfinished reservations carrying that marker; it never infers ownership from a worker name. Legacy workers whose names begin with `local-session:`—including `local-session:foo` and `local-session::...`—remain unmarked and retain their normal expiry/reclaim behavior.
+
 ## 1. Reserve the next question (legacy / demo)
 
 ```sh
