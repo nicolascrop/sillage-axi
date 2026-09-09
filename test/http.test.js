@@ -87,6 +87,17 @@ test('simultaneous HTTP pollers receive at most one live reservation', async t =
   assert.equal(results.filter(r => r.request).length, 1);
 });
 
+test('legacy HTTP reservations cannot self-declare managed ownership', async t => {
+  const app = await start(temporaryDb(t));
+  t.after(() => stop(app));
+  const doc = await post(app.origin, '/api/document', { title: 'Test', source: 'Exact context.' });
+  await post(app.origin, '/api/questions', questionInput(doc));
+  const { request } = await post(app.origin, '/api/agent/reserve', {
+    worker: 'local-session:legacy', managed: true,
+  });
+  assert.equal(app.store.db.prepare('SELECT managed FROM requests WHERE id=?').get(request.request_id).managed, 0);
+});
+
 test('fake adapter refuses non-loopback destinations and credential-bearing URLs', () => {
   assert.equal(localUrl('http://127.0.0.1:3210'), 'http://127.0.0.1:3210');
   for (const value of ['https://example.test', 'http://example.test', 'http://127.0.0.1.evil.test',

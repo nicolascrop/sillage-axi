@@ -78,7 +78,9 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now } = {}) {
         if (!('session_id' in input) && relay.status().state === 'active') {
           throw new Problem(409, 'A connected local agent owns the queue; demo/legacy workers must wait until it disconnects');
         }
-        return send(200, { request: 'session_id' in input ? relay.reserve(input) : store.reserve(input) });
+        if ('session_id' in input) return send(200, { request: relay.reserve(input) });
+        const { worker, lease_seconds } = input;
+        return send(200, { request: store.reserve({ worker, lease_seconds }) });
       }
       const answerPath = path.match(/^\/api\/agent\/requests\/([a-f0-9-]+)\/answer$/);
       if (req.method === 'POST' && answerPath) {

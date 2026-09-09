@@ -51,7 +51,7 @@ export class LocalRelay {
   reserve(input) {
     this.requireSession(input);
     if (this.pending) return null;
-    this.pending = this.store.reserve({ worker: `local-session:${this.session.worker}`, lease_seconds: 120 });
+    this.pending = this.store.reserve({ worker: `local-session:${this.session.worker}`, lease_seconds: 120, managed: true });
     return this.pending;
   }
   answered(id) {

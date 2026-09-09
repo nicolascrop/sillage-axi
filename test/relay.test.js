@@ -51,21 +51,26 @@ test('explicit agent presence expires; lost heartbeat and timed-out work are ter
 
 test('restart fails only abandoned managed work, preserving legacy lease reclamation and queued questions', t => {
   const path = temporaryDb(t);
-  const store = new Store(path);
+  let now = 1000;
+  const store = new Store(path, { now: () => now });
   const doc = seed(store);
   const thread = store.question(questionInput(doc));
-  const relay = new LocalRelay(store);
-  relay.reserve(relay.connect({ worker: 'real-local' }));
+  const relay = new LocalRelay(store, () => now);
+  const managed = relay.reserve(relay.connect({ worker: 'real-local' }));
   const legacy = store.question(questionInput(doc, { client_key: 'legacy' }));
-  store.reserve({ worker: 'legacy' });
+  const legacyReservation = store.reserve({ worker: 'local-session:legacy' });
+  assert.equal(store.db.prepare('SELECT managed FROM requests WHERE id=?').get(managed.request_id).managed, 1);
+  assert.equal(store.db.prepare('SELECT managed FROM requests WHERE id=?').get(legacyReservation.request_id).managed, 0);
   const queued = store.question(questionInput(doc, { client_key: 'queued' }));
   store.close(); // Simulate crash: no relay disconnect.
-  const app = createApp({ dbPath: path });
+  const app = createApp({ dbPath: path, now: () => now });
   t.after(() => app.server.emit('close'));
   assert.equal(app.relay.status().state, 'unavailable');
   assert.equal(app.store.thread(thread.id).request_status, 'failed');
   assert.equal(app.store.thread(legacy.id).request_status, 'reserved');
   assert.equal(app.store.thread(queued.id).request_status, 'waiting');
+  now += 60_001;
+  assert.equal(app.store.reserve({ worker: 'replacement' }).request_id, legacyReservation.request_id);
 });
 
 test('actual local-agent JSONL bridge drains queued questions with supplied answers and fails on EOF', async t => {

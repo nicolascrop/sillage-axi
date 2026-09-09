@@ -7,10 +7,30 @@ import { DatabaseSync } from 'node:sqlite';
 test('unknown future database schema is refused rather than overwritten', t => {
   const path = temporaryDb(t);
   const db = new DatabaseSync(path);
-  db.exec('PRAGMA user_version=2');
-  assert.throws(() => new Store(path), /Unsupported Sillage database schema 2/);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 2);
+  db.exec('PRAGMA user_version=3');
+  assert.throws(() => new Store(path), /Unsupported Sillage database schema 3/);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 3);
   db.close();
+});
+
+test('schema v1 gains a nonmanaged reservation marker during migration', t => {
+  const path = temporaryDb(t);
+  const db = new DatabaseSync(path);
+  db.exec(`CREATE TABLE requests (
+    id TEXT PRIMARY KEY, thread_id TEXT NOT NULL UNIQUE,
+    client_key TEXT NOT NULL UNIQUE, payload_hash TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('waiting','reserved','answered','failed')),
+    worker TEXT, lease_token TEXT, lease_until INTEGER, attempts INTEGER NOT NULL DEFAULT 0,
+    answer_hash TEXT, created_at INTEGER NOT NULL
+  ); PRAGMA user_version=1`);
+  db.close();
+  const store = new Store(path);
+  try {
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 2);
+    const managed = store.db.prepare('PRAGMA table_info(requests)').all().find(column => column.name === 'managed');
+    assert.deepEqual({ name: managed.name, notnull: managed.notnull, dflt_value: managed.dflt_value },
+      { name: 'managed', notnull: 1, dflt_value: '0' });
+  } finally { store.close(); }
 });
 
 function seed(store) { return store.importReport({ title: 'Report', source: '# H\n\nExact context.\n\nUnchanged.' }); }
