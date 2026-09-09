@@ -11,7 +11,8 @@
     "start": "node src/server.js",
     "fake-agent": "node src/fake-agent.js",
     "test": "node --test",
-    "check": "node --check src/render.js && node --check src/store.js && node --check src/server.js && node --check src/fake-agent.js && node --check public/app.js"
+    "check": "node --check src/render.js && node --check src/store.js && node --check src/server.js && node --check src/relay.js && node --check src/agent-client.js && node --check src/local-agent.js && node --check src/fake-agent.js && node --check public/app.js",
+    "local-agent": "node src/local-agent.js"
   },
   "dependencies": {
     "markdown-it": "14.3.1",

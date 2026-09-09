@@ -141,3 +141,15 @@ test('regeneration keeps exact relationships but never drifts a changed, deleted
     assert.equal(store.thread(thread.id).messages.length, 2);
   } finally { store.close(); }
 });
+
+test('compare-and-import guards file watching against concurrent revisions without changing manual v1 imports', () => {
+  const store = new Store(':memory:');
+  try {
+    const first = store.importReport({ title: 'Français', source: 'Bonjour.', expected_revision_id: null });
+    const second = store.importReport({ title: 'Français', source: 'Bonjour à tous.', expected_revision_id: first.id });
+    assert.throws(() => store.importReport({ title: 'Français', source: 'Ancien fichier.', expected_revision_id: first.id }), { status: 409 });
+    assert.equal(store.current().id, second.id);
+    assert.equal(store.current().source, 'Bonjour à tous.');
+    assert.equal(store.importReport({ title: 'Français', source: 'Bonjour à tous.' }).id, 3);
+  } finally { store.close(); }
+});
