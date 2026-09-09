@@ -73,7 +73,7 @@ test('restart fails only abandoned managed work, preserving legacy lease reclama
   assert.equal(app.store.reserve({ worker: 'replacement' }).request_id, legacyReservation.request_id);
 });
 
-test('actual local-agent JSONL bridge drains queued questions with supplied answers and fails on EOF', async t => {
+test('direct Node local-agent command emits only JSONL, drains supplied answers and fails pending work on EOF', async t => {
   const app = createApp({ dbPath: temporaryDb(t) });
   const doc = seed(app.store);
   const first = app.store.question(questionInput(doc));
@@ -98,6 +98,7 @@ test('actual local-agent JSONL bridge drains queued questions with supplied answ
     assert.fail(`No ${type}: ${JSON.stringify(records)} ${errors}`);
   }
   await waitForRecord('ready-required');
+  assert.deepEqual(records.map(record => record.type), ['ready-required'], 'stdout begins with readiness JSONL, not a banner');
   assert.equal(app.relay.status().state, 'unavailable', 'starting a bridge is not starting AI');
   child.stdin.write('{"type":"ready","worker":"test-local-reasoner"}\n');
   const { request } = await waitForRecord('request');
@@ -111,8 +112,9 @@ test('actual local-agent JSONL bridge drains queued questions with supplied answ
   assert.equal(app.store.thread(first.id).anchor_status, 'needs_review');
   await waitForRecord('request', 2);
   child.stdin.end();
-  const [code] = await once(child, 'exit');
+  const [code] = await once(child, 'close'); // Include all stdout before checking the complete JSONL stream.
   assert.equal(code, 0, errors);
+  assert.deepEqual(records.map(record => record.type), ['ready-required', 'connected', 'request', 'saved', 'request', 'stopped']);
   assert.equal(app.relay.status().state, 'unavailable');
   assert.equal(app.store.thread(second.id).request_status, 'failed');
   assert.match(app.store.thread(second.id).messages[1].body, /stopped/);

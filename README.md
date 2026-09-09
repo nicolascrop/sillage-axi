@@ -33,8 +33,12 @@ The header shows **Local agent · unavailable** until an already-running, fully 
 Use the [Sillage agent skill](skills/sillage/SKILL.md) and [local-agent connection guide](docs/local-agent.md). An existing local agent can use the managed HTTP lifecycle directly, or attach to the explicit JSONL bridge:
 
 ```sh
-npm run local-agent
+node src/local-agent.js
+# Or, for a nondefault loopback port:
+SILLAGE_URL=http://127.0.0.1:3211 node src/local-agent.js
 ```
+
+Use Node directly for machine attachment: npm's normal script banner can pollute the JSONL stdout stream. Attach stdin/stdout separately from stderr.
 
 The bridge is **not AI**: it stays unavailable until the attached reasoner declares readiness, then relays queued requests and stores that reasoner's actual cited replies. It runs continuously, maintains heartbeats and supports clean disconnect via EOF or a stop message. Lost presence or a 120-second answering deadline produces an explicit terminal failure, not a fabricated answer. Unclaimed questions stay queued. The separate `fake-agent` command never advertises active-agent presence and cannot take work while a real managed worker is connected. See the [v1 local agent protocol](docs/agent-protocol.md) for provenance, citations and idempotency.
 

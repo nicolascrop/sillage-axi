@@ -139,7 +139,11 @@ test('compact durable threads are hidden by default; local-agent presence and co
   assert.match(ui.$('agent-state').textContent, /unavailable/);
   ui.$('agent-toggle').click();
   assert.equal(ui.$('agent-panel').hidden, false);
-  assert.match(ui.$('agent-panel').textContent, /npm run local-agent/);
+  const instructions = ui.$('agent-panel').textContent;
+  const commands = [...ui.$('agent-panel').querySelectorAll('code')].map(node => node.textContent);
+  assert.ok(commands.includes('node src/local-agent.js'));
+  assert.ok(commands.includes('SILLAGE_URL=http://127.0.0.1:3211 node src/local-agent.js'));
+  assert.doesNotMatch(instructions, /npm\s+run\s+local-agent/);
   assert.equal(ui.$('question-submit').textContent, 'Ask question');
   ui.$('threads-toggle').click();
   assert.equal(ui.$('threads-panel').hidden, false);
