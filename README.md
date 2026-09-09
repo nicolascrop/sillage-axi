@@ -1,6 +1,6 @@
 # Sillage
 
-A small **local-only Markdown report reader** with temporary question bubbles and durable passage conversations. One reader, one PC, one report with multiple revisions. Independent of Lavish; no external AI provider, telemetry, accounts, or cloud services.
+A small **local-only Markdown report reader** with temporary question bubbles and durable passage conversations. One reader, one PC, one report with multiple revisions. Sillage uses **no external AI provider**, telemetry, accounts, or cloud services.
 
 ## Run
 
@@ -26,6 +26,10 @@ npm test        # offline: rendering, database, HTTP, fake CLI, and reader DOM t
 npm run check  # JavaScript syntax checks
 ```
 
+### Using an agent
+
+See the public [Sillage agent skill](skills/sillage/SKILL.md) for setup, passage questions, and answering workflows. The active local agent can poll the relay and post a cited answer; Sillage does not start an agent or call a model. The included fake agent is only a deterministic demo/test adapter. The actual request/answer contract is the [v1 local agent protocol](docs/agent-protocol.md), implemented in `src/server.js` and `src/store.js`; `src/fake-agent.js` is a minimal working adapter.
+
 ### Local configuration
 
 ```sh
@@ -43,7 +47,7 @@ The default durable store is `.data/sillage.sqlite` relative to the working dire
 4. Stop and restart `npm start`. The bubble itself is gone, but the thread, quote, reply, citation, and original snapshot remain. Reopen it from Threads.
 5. Import `examples/report-changed.md` **as a new revision of the same report**. The original deployment paragraph has changed. Its thread now says **passage to review**, retains the original quote and answer, and offers its original source snapshot instead of jumping to a different passage. Unmatched threads stay in the compact list even when closed. The unchanged “The review checklist…” paragraph can retain its identity.
 
-This first slice keeps one question and one terminal reply per thread. Ask another question to create another thread. No automatic editing, follow-up chat, manual reattachment, file watching, or report switching is implemented. Importing an unrelated file is still a new revision of the one report.
+This prototype keeps one question and one final reply per thread. Ask another question to create another thread. No automatic editing, follow-up chat, manual reattachment, file watching, or report switching is implemented. Importing an unrelated file is still a new revision of the one report.
 
 ## How anchors and revisions work
 
@@ -51,14 +55,15 @@ This first slice keeps one question and one terminal reply per thread. Ask anoth
 
 A revision carries an ID forward **only** when its fingerprint occurs exactly once in both the immediately previous revision and the new revision. Fingerprints include block kind, exact normalized source, resolved safe rendering, section heading path, and enclosing container sources. This notices changed reference-link destinations and avoids attaching unchanged-looking children after their list/quote container changes. CRLF/LF normalization is intentional; all original full source is also retained.
 
-Changed, deleted, split, merged, or ambiguous blocks get fresh IDs. Unmatched threads never automatically reconnect, even if identical text reappears in a later revision. Matching is deliberately conservative: editing a heading or any part of a list/quote can mark its unchanged children for review. There is no fuzzy matching or manual “trust me” remap in this slice. Historic questions can still be submitted from an old tab and will show the appropriate review state.
+Changed, deleted, split, merged, or ambiguous blocks get fresh IDs. Unmatched threads never automatically reconnect, even if identical text reappears in a later revision. Matching is deliberately conservative: editing a heading or any part of a list/quote can mark its unchanged children for review. There is no fuzzy matching or manual reassignment of a thread to another passage. Historic questions can still be submitted from an old tab and will show the appropriate review state.
 
 ## Safety and extension points
 
 - **Rendering:** Markdown-it with raw HTML disabled, then a strict sanitize-html allowlist. Agent replies/questions/citations use DOM `textContent`, never HTML. Images are explicit text placeholders, not network fetches. Relative file links are inert; generated Contents links work. Raw HTML, SVG, and arbitrary embeds do not execute.
 - **Local boundary:** hard-bound to IPv4 loopback, strict Host/Origin checks, no CORS, JSON plus a required custom write header, restrictive CSP, and no filesystem-serving endpoint. Other processes running as the local user can access the API; this is not an authentication or hostile-machine sandbox. Do not reverse-proxy or expose it to a LAN/public interface.
 - **Storage/protocol:** `src/store.js` owns SQLite transactions, snapshots, idempotency and leases. `src/server.js` exposes the local HTTP boundary. See [the v1 agent protocol](docs/agent-protocol.md) before writing an adapter. Full document text is supplied locally to a reserved worker; adopting any external provider needs a separate privacy decision.
-- **Diagrams:** an `excalidraw` code fence becomes an explicit **Unsupported diagram · Excalidraw** figure with preserved, escaped source. The integration seam is `codeRenderer` in `src/render.js` and `[data-diagram="excalidraw"]` in the reader. A future read-only, locally bundled established Excalidraw-compatible component can consume validated scene JSON there. It must preserve the enclosing block identity, bound scene complexity, and prevent remote images/fonts/links from auto-loading. No custom diagram editor or unsafe SVG/HTML fallback is included.
+- **Agent trust:** report Markdown, questions, and agent replies are data, not executable instructions or permission to modify a project. Preserve the original revision and passage references; never silently move a thread to regenerated text. Do not put secrets in reports, questions, replies, or citations.
+- **Diagrams:** an `excalidraw` code fence becomes an explicit **Unsupported diagram · Excalidraw** figure with preserved, escaped source. The extension points are `codeRenderer` in `src/render.js` and `[data-diagram="excalidraw"]` in the reader. A future read-only, locally bundled established Excalidraw-compatible component can consume validated scene JSON there. It must preserve the enclosing block identity, bound scene complexity, and prevent remote images/fonts/links from auto-loading. No custom diagram editor or unsafe SVG/HTML fallback is included.
 - **UI:** plain JavaScript/CSS, dark Material Darker-inspired palette; no build, WebSockets, streaming, shell execution, vector search, or provider SDK.
 - **Limits:** 1,000,000 source characters / 20,000 lines / 5,000 passages per import, 2 MB API payloads, 4,000-character questions, 2,000-character UI selections. SQLite migrations beyond schema v1 and resource isolation for very large/malicious documents are out of scope for this local prototype.
 

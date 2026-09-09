@@ -88,7 +88,9 @@ test('reader DOM workflow: import, selected quote, waiting, reply, close, reload
   assert.match(ui.$('messages').textContent, /Local fake agent/);
   ui.$('close-thread').click();
   await waitFor(() => app.store.thread(thread.id).closed === 1);
-  await ui.poll();
+  // The database changes before the PATCH handler finishes refreshing the UI.
+  // Wait for its rendered result before teardown closes the jsdom document.
+  await waitFor(() => ui.$('close-thread').textContent === 'Reopen thread');
   assert.match(ui.$('threads').textContent, /passage to review/, 'unmatched stays visible even if closed');
 });
 
@@ -114,5 +116,7 @@ test('uncertain save retry reuses payload and client key instead of creating a d
   assert.equal(app.store.threads().length, 1);
   submit(ui, 'question-form');
   await waitFor(() => ui.$('bubble-status').textContent.includes('waiting'));
+  // "Waiting" is drawn before the submit handler's final thread-list fetch.
+  await waitFor(() => ui.$('threads').querySelector('[data-thread-id]'));
   assert.equal(app.store.threads().length, 1);
 });
