@@ -37,7 +37,10 @@ test('new and historical CLI paths are finite outside the checkout', t => {
     assert.equal(version.stdout, '0.1.0\n');
     const help = spawnSync(process.execPath, [entry, '--help'], { cwd: outside, encoding: 'utf8' });
     assert.equal(help.status, 0, `${file} --help: ${help.stderr}`);
-    assert.match(help.stdout, /sillage-axi/);
+    assert.ok(help.stdout.includes(file === 'bin/sillage.js' ? `node '${entry}'` : 'sillage-axi'));
+    const invalid = spawnSync(process.execPath, [entry, 'invented-command'], { cwd: outside, encoding: 'utf8' });
+    assert.equal(invalid.status, 2, `${file} invalid command: ${invalid.stderr}`);
+    assert.ok(invalid.stdout.includes(file === 'bin/sillage.js' ? `node '${entry}' --help` : 'sillage-axi --help'));
     assert.equal(existsSync(join(outside, '.data')), false);
     assert.equal(existsSync(join(outside, '.sillage')), false);
   }

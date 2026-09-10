@@ -21,11 +21,16 @@ function invocation() {
   if (![executable, primaryExecutable].some(path => {
     try { return realpathSync(path) === actual; } catch { return false; }
   })) return { executable, command: primaryCommand };
-  const direct = ['sillage.js', 'sillage-axi.js'].includes(basename(candidate));
-  return { executable: candidate, command: direct ? `node ${shellQuote(candidate)}` : primaryCommand };
+  const directLegacy = basename(candidate) === 'sillage.js';
+  return { executable: candidate, command: directLegacy ? `node ${shellQuote(candidate)}` : primaryCommand };
 }
 function usageFor(usage, command) {
   return usage.startsWith(primaryCommand) ? `${command}${usage.slice(primaryCommand.length)}` : usage;
+}
+function helpForInvocation(name, command) {
+  const help = helpFor(name);
+  if (command === primaryCommand) return help;
+  return { ...help, usage: help.usage.replaceAll(primaryCommand, command), examples: help.examples.map(example => example.replaceAll(primaryCommand, command)) };
 }
 function connection(options, command = primaryCommand) {
   let scope;
@@ -66,7 +71,7 @@ export async function main(argv) {
   let command = 'home'; let next = `${current.command} --help`;
   try {
     const parsed = parse(argv);
-    if (parsed.help) return output(helpFor(parsed.help));
+    if (parsed.help) return output(helpForInvocation(parsed.help, current.command));
     if (parsed.version) { console.log(version); return; }
     const { name, options, args } = parsed; command = name;
     next = usageFor(helpFor(name).usage, current.command);
@@ -141,7 +146,7 @@ export async function main(argv) {
       return output({ thread_id: thread.id, closed: Boolean(thread.closed) });
     }
   } catch (error) {
-    await failure(error instanceof Usage ? 'usage' : 'runtime', error instanceof Usage || !error.code ? error.message : 'Local operation failed; check file permissions and service configuration.', [next, ...(command === 'home' ? [] : [`${primaryCommand} --help`])]);
+    await failure(error instanceof Usage ? 'usage' : 'runtime', error instanceof Usage || !error.code ? error.message : 'Local operation failed; check file permissions and service configuration.', [next, ...(command === 'home' ? [] : [`${current.command} --help`])]);
   }
 }
 function commandsImportExample(expected = null) {
