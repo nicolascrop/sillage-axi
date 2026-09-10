@@ -99,6 +99,15 @@ git diff --check
 - That accepted Chrome evidence does **not** establish native File System Access permissions, live-update scroll anchoring, comprehensive accessibility, browser CSP enforcement, or local-model inference. The corresponding jsdom geometry/file handles remain controlled fixtures. Browser background throttling and editor file replacement can delay or interrupt explicit disk observation, as documented in the README.
 - The single implemented direction is Material Darker Air. Plum & Amber is documentation only. No Yuba/Lavish files, second report, Delta translation, external provider or unrelated local-only capture surface was introduced.
 
+## UI delivery validation follow-up
+
+The subsequent validation recorded in [the existing UI follow-up](https://github.com/nicolascrop/sillage/pull/3) extended the earlier UI evidence above:
+
+- **40 tests passed, 0 failed** before delivery validation, using loopback and disposable databases without a model, external provider, secret or reader report.
+- A real Chrome 148 pass through `chrome-devtools-axi` covered wide 1280×900 and narrow 390×844 layouts. It observed no horizontal overflow; the narrow question bubble measured 351px wide at x=12 inside a 375px usable client width. It also checked focusable passage affordances, the unavailable and active local-agent states, compact Threads after toggling, the Ask question wording, and a cited answer through the JSONL bridge. A local compare-and-import changed revision appeared automatically without reload, preserving the open answer and original quote while showing **Passage to review**. The secure loopback page exposed `showOpenFilePicker`, and the UI surfaced the explicit read-only connection path plus its fallback guidance. Browser background throttling and editor file replacement can still delay or interrupt explicit disk observation, as documented in the README.
+- The browser accessibility snapshot exposed the Sillage mark, local-agent state, import and Threads controls, focusable passages, and the **Ask question** action. Evidence screenshots and geometry were recorded under `/tmp/no-mistakes-evidence/01M236K1M6A33Q6JDXRBKNJP69/` during that validation, not this merge reconciliation.
+- File-picker API availability and the connection UI do not prove native file permission/observation behavior. The supplied bridge answers validate transport and citations, not local-model inference; comprehensive accessibility and browser CSP enforcement remain outside the recorded pass.
+
 ## Stdio launch-command follow-up
 
 Validated in the isolated `fm/sillage-stdio-command-followup` worktree, based on the merged UI default branch, with Node.js **v24.18.1** and npm **11.16.0**:
@@ -134,3 +143,20 @@ git diff --check
 - Native Tab/arrow navigation selected Margin note with visible focus and exclusive highlighting. Pointer selection selected Mooring; Clear choice removed the highlight/preview and returned focus to the first radio. An actual browser reload (`PerformanceNavigationTiming.type === 'reload'`) reset selection to zero. The accessibility snapshot exposes ten named radios with rationale descriptions and the live selection status.
 - The browser pass caught SVG-specific issues not modeled by jsdom: assigning `SVGElement.hidden` did not reveal the selected preview, and same-file `<use>` references produced a file-origin error. The board now toggles the hidden attribute explicitly and uses inline geometry, with matching regression assertions. Final Chrome console: **no messages**. Network panel: **only the local HTML file**, no service or external asset requests.
 - Local evidence remains gitignored under `.data/icon-gallery/`: `wide.png`, `wide-selected.png`, `narrow-full.png`, `narrow-selected.png`, `narrow-card.png`, plus DOM, console, network and command logs. No production logo, favicon, route, reader link, application setting or persistence behavior was changed. Other browsers, a screen reader and forced-colors mode were not manually exercised.
+
+## Existing-branch merge reconciliation
+
+Reconciled `fm/sillage-ui-feedback-adjustments` with `main` at `673a2f9` in an isolated worktree. Kept the direct Node stdio instructions and stronger JSONL regression checks, the standalone icon proposal board and its tests, and both branches' validation history. The resolved application, tests, dependencies and CI workflow are identical to that main revision; the remaining content differences are documentation clarifications and the later UI evidence above.
+
+```sh
+npm ci --ignore-scripts --offline --cache .npm-cache --no-audit --no-fund
+node --test test/stdio-command.test.js test/relay.test.js test/ui.test.js test/icon-proposals.test.js
+npm test
+npm run check
+git diff --cached --check
+git diff --check
+```
+
+- Node.js **v24.18.1**, npm **11.16.0**: **20 focused tests and all 48 repository tests passed, 0 failed**; syntax and whitespace checks passed. Installation used the worktree-local cache; tests remained offline apart from loopback HTTP and used disposable databases.
+- Full coverage retains managed-marker migration/restart ownership, legacy lease compatibility, original citations, no-silent-remap revisions, durable threads, live-update/file-capability fixtures, narrow bubble containment, and local asset/HTTP safety. No runtime behavior, local-only boundary or unrelated main work was removed.
+- This reconciliation performed no new Chrome pass and does not expand the recorded browser evidence above. Final remote CI is a separate delivery gate, not claimed by these local results.
