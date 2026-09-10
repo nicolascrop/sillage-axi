@@ -1,9 +1,11 @@
 import http from 'node:http';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { Store, Problem } from './store.js';
-import { LocalRelay } from './relay.js';
+import { readFileSync, realpathSync } from 'node:fs';
+import { legacyGate, isEntry, failure } from './entry.js';
+const handled = await legacyGate(import.meta.url, 'serve');
+const { Store, Problem } = handled ? {} : await import('./store.js');
+const { LocalRelay } = handled ? {} : await import('./relay.js');
+const { inspect } = handled ? {} : await import('./inspection.js');
+const { validate } = handled ? {} : await import('./arguments.js');
 
 const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -36,7 +38,8 @@ async function jsonBody(req) {
   return body;
 }
 
-export function createApp({ dbPath = '.data/sillage.sqlite', now } = {}) {
+export function createApp({ dbPath = '.data/sillage.sqlite', now, scopeRoot = process.cwd() } = {}) {
+  const scope = realpathSync(scopeRoot);
   const store = new Store(dbPath, { now });
   store.recoverLocalReservations();
   const relay = new LocalRelay(store, now);
@@ -55,10 +58,25 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now } = {}) {
         req.headers['sec-fetch-site'] === 'cross-site') {
         throw new Problem(403, 'Local same-origin requests only');
       }
+      if (req.headers['x-sillage-scope'] && req.headers['x-sillage-scope'] !== encodeURIComponent(scope)) return send(409, { service: 'out_of_scope' });
       const path = new URL(req.url, `http://${req.headers.host}`).pathname;
       if (req.method === 'GET' && assets.has(path)) {
         const [file, type] = assets.get(path);
         return send(200, readFileSync(new URL(`../public/${file}`, import.meta.url)), type);
+      }
+      if (req.method === 'GET' && path === '/api/inspect') {
+        const query = new URL(req.url, `http://${req.headers.host}`).searchParams;
+        if (query.get('scope') !== scope) return send(409, { service: 'out_of_scope' });
+        const view = query.get('view') || 'home';
+        if (!['home', 'context', 'document', 'blocks', 'block', 'threads', 'thread'].includes(view)) throw new Problem(400, 'Unknown inspection view');
+        if ([...query.keys()].some(key => !['scope', 'view', 'id', 'revision', 'fields', 'limit', 'offset', 'full'].includes(key))) throw new Problem(400, 'Unknown inspection parameter');
+        if (new Set(query.keys()).size !== [...query.keys()].length) throw new Problem(400, 'Duplicate inspection parameter');
+        const options = Object.fromEntries([...query].filter(([key]) => !['view', 'id', 'scope'].includes(key)));
+        if ('full' in options) options.full = options.full === 'true' ? true : options.full;
+        try {
+          validate(view, options, query.has('id') ? [query.get('id')] : []);
+          return send(200, inspect(store, relay, { view, id: query.get('id'), ...options }));
+        } catch (error) { throw new Problem(error.status || 400, error.message); }
       }
       relay.sweep();
       if (req.method === 'GET' && path === '/api/state') return send(200, { revision_id: store.revisionId(), agent: relay.status() });
@@ -104,12 +122,24 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now } = {}) {
   return { server, store, relay };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+export async function serve() {
   process.umask(0o077);
   const port = Number(process.env.SILLAGE_PORT || 3210);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid SILLAGE_PORT');
-  const { server } = createApp({ dbPath: process.env.SILLAGE_DB || '.data/sillage.sqlite' });
-  server.listen(port, '127.0.0.1', () => console.log(`Sillage: http://127.0.0.1:${port} (local only)`));
-  server.on('error', error => { console.error(error.message); process.exitCode = 1; });
-  for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => server.close());
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    await failure('usage', 'Invalid SILLAGE_PORT: expected an integer from 1 to 65535', 'SILLAGE_PORT=3210 node src/server.js');
+    return;
+  }
+  let app;
+  try {
+    app = createApp({ dbPath: process.env.SILLAGE_DB || '.data/sillage.sqlite' });
+    app.server.on('error', async () => {
+      app.server.close();
+      await failure('service', 'Cannot listen on the local port', 'Choose a free SILLAGE_PORT; run only one service per SILLAGE_DB.');
+    });
+    app.server.listen(port, '127.0.0.1', () => console.error(`Sillage: http://127.0.0.1:${port} (local only)`));
+    for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => app.server.close());
+  } catch {
+    await failure('storage', 'Cannot open the local database; it may be inaccessible or use an unsupported schema', 'Check SILLAGE_DB permissions and use a compatible Sillage version; do not delete reader data.');
+  }
 }
+if (isEntry(import.meta.url) && !handled) await serve();

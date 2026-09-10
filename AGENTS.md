@@ -1,7 +1,7 @@
 # Sillage project memory
 
 - Local-only, single-report prototype, independent of Lavish. Do not introduce a real external provider or automatic network fetches without a separate privacy decision.
-- Run/setup, scope, safety boundaries and diagram extension points: `README.md`. Public installer-facing agent workflow: `skills/sillage/SKILL.md`. Node.js 24+; `npm test` and `npm run check` are offline after `npm ci --ignore-scripts`.
+- Run/setup, scope, safety boundaries and diagram extension points: `README.md`. Public installer-facing agent workflow: `skills/sillage/SKILL.md`, generated from `src/guidance.js` with `npm run skill:generate`. Node.js 24+; `npm test` and `npm run check` are offline after `npm ci --ignore-scripts`.
 - Semantic IDs and conservative revision reconciliation live in `src/render.js`; persistence/leases in `src/store.js`; the provider-neutral contract is `docs/agent-protocol.md`. Never replace the fail-unmatched policy with silent fuzzy reattachment.
 - Default data is `.data/sillage.sqlite` (gitignored). Tests use disposable databases under `.data/test/`. Never commit reader reports, questions, database files or secrets.
 - Active-local-agent lifecycle/stdio limits: `docs/local-agent.md`; browser live-revision and explicit file-capability workflow: `README.md#live-report-updates`. No bundled inference; only one service per database.

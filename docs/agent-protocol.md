@@ -92,7 +92,7 @@ These are **storage idempotency and exclusive lease semantics**, not exactly-onc
 
 - `GET /api/state` → current `revision_id` (or null) plus active/unavailable agent presence; no report content or session handle. Readers poll this for live updates.
 - `GET /api/document` → current revision, sanitized HTML, TOC, block records and source; `null` before import.
-- `POST /api/document` with `{title,source}` → 201 new revision. **Every import** creates a revision, even identical source. This endpoint is not idempotent. Optional `expected_revision_id` (integer, or null before first import) enables atomic compare-and-import: a different current revision returns 409 without writing. Browser manual imports and authorized file observation use this guard.
+- `POST /api/document` with `{title,source}` → 201 new revision. **Without `operation_key`, every import** creates a revision, even identical source (unchanged v1 semantics). An optional nonempty `operation_key` (at most 100 characters) makes retries durable: the same key and exact title/source/expected-revision payload returns the original revision with the same 201 document shape; different payload under the key returns 409. Reconciliation precedes the current guard check, so lost acknowledgements remain recoverable after later revisions. A new key permits an intentional repeat import. Keys are retained in an additive `import_operations` table; existing SQLite IDs and schema-v2 compatibility remain. Optional `expected_revision_id` (integer, or null before first import) enables atomic compare-and-import: a different current revision returns 409 without writing. Browser manual imports and authorized file observation use this guard.
 - `POST /api/questions` with `{revision_id,block_id,quote,question,client_key}` → 201 durable thread, user message and waiting request. `client_key` is reader-generated (UUID recommended). Retrying the same key and exact question payload returns the existing thread; different content under the key returns 409. Old revisions remain valid for old-tab drafts. The initial commit happens before acknowledging “saved”.
 - `GET /api/threads` / `GET /api/threads/THREAD_ID` → original references, exact quote/context, messages/citations, unread/closed flags, `request_status`, attempts/lease deadline and `worker` (including `deterministic-fake-v1` for the demo), `current_revision_id`, and `anchor_status` (`matched` or `needs_review`). There is no deletion or fuzzy remap endpoint.
 - `PATCH /api/threads/THREAD_ID` with boolean `{unread:false}` or `{closed:true}` → updated thread. Closing is reader organization, **not cancellation**; replies still persist and mark it unread.
@@ -108,3 +108,22 @@ SILLAGE_URL=http://127.0.0.1:3211 npm run fake-agent
 ```
 
 `src/fake-agent.js` makes one reservation and one terminal post, then exits. It uses no secrets or network beyond loopback, rejects redirects/nonlocal configured origins, quotes the saved context, and cites that exact revision/block. Long display excerpts are shortened without altering the stored quote/citation. Tests invoke the actual command as well as exercising reservation expiry and duplicate delivery without a model.
+
+
+## Additive AXI inspection boundary
+
+The CLI uses `GET /api/inspect?scope=<canonical-startup-directory>&view=<view>`.
+Views: `home`, privacy-restricted `context`, `document`, `blocks`, `block`, `threads`,
+`thread`. Exact detail uses `id` and/or integer `revision`; lists accept `limit`
+(1–100, default 100), `offset` (default 0), and whitelisted comma-separated `fields`;
+`full=true` opts out of detail previews. Invalid parameters are rejected before
+querying content. This endpoint performs no lease sweep or recovery. Home aggregates
+are snapshots, not a reservation or assertion of model readiness.
+
+An unmatched scope returns 409 `{service:"out_of_scope"}` without reader content.
+New CLI writes/agent requests also send optional `X-Sillage-Scope` containing the
+percent-encoded canonical directory, checked on each request before writes. Old
+clients need not send it. These are accidental cross-scope safeguards, not a new
+authentication boundary. Existing routes, v1 context/citations and JSONL events are
+unchanged. The finite CLI boundary converts its JSON responses to TOON; HTTP and
+JSONL remain JSON and JSONL respectively.

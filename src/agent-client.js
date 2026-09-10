@@ -6,12 +6,12 @@ export function localUrl(value) {
   }
   return url.origin;
 }
-export function localClient(base) {
+export function localClient(base, { scope } = {}) {
   const origin = localUrl(base);
   return async (path, body) => {
     const response = await fetch(`${origin}${path}`, {
       method: 'POST', redirect: 'error',
-      headers: { 'Content-Type': 'application/json', 'X-Sillage-Local': '1' },
+      headers: { 'Content-Type': 'application/json', 'X-Sillage-Local': '1', ...(scope ? { 'X-Sillage-Scope': encodeURIComponent(scope) } : {}) },
       body: JSON.stringify(body), signal: AbortSignal.timeout(10_000),
     });
     const data = await response.json();

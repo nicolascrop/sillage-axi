@@ -23,8 +23,111 @@ Run it again for each question; an empty queue prints `{"status":"idle"}`. This 
 
 ```sh
 npm test        # offline: rendering, database, HTTP, fake CLI, and reader DOM tests
-npm run check  # JavaScript syntax checks
+npm run check  # JavaScript syntax and generated-skill freshness checks
 ```
+
+### Agent-facing CLI (AXI façade, same Sillage name)
+
+The package exposes `sillage` via `bin/sillage.js`. A global installation is
+optional: from a preinstalled checkout, every command works offline as
+`node /absolute/path/to/sillage/bin/sillage.js …`. To expose the executable on PATH,
+explicitly run `npm link --ignore-scripts` in that checkout; there is no automatic
+installer, updater or registry check at runtime.
+
+```sh
+node bin/sillage.js                 # finite read-only home, not server startup
+node bin/sillage.js --help
+node bin/sillage.js document        # source preview; --full retrieves exact text
+node bin/sillage.js blocks --fields id,kind,ordinal
+node bin/sillage.js threads         # bounded list plus total and derived counts
+node bin/sillage.js thread <id> --full
+node bin/sillage.js import --file examples/report.md --title Report --key import-1 --expected null
+```
+
+Home identifies the executable, service/report/queue state and a few next commands.
+It never creates a database, starts a service, installs hooks, reads a report file,
+reserves work or launches inference. Start the service explicitly with `sillage serve`
+or the unchanged `npm start`. `sillage demo` explicitly consumes one demo request;
+`sillage attach` explicitly switches to the **continuous JSONL** bridge. For the full
+reply/citation contract, use `sillage agent-help` or the connection guide below.
+
+Finite CLI results (observations and mutations) and errors use **TOON** on stdout;
+version is a bare string.
+Progress/diagnostics use stderr. Exit codes are 0 success/no-op, 1 runtime failure,
+2 invalid usage; no command prompts. Every command has `--help`; `-v`, `-V`,
+`--version` are side-effect-free. The historical Node scripts retain their launch
+commands (including demo JSON and bridge JSONL); their help/version/unknown-input
+paths now terminate without doing work. HTTP continues to speak JSON, not TOON.
+
+Inspection matches the service's **canonical startup directory** with the current
+directory. It does not search parent directories or discover other databases. Use
+`--scope /absolute/service-directory` to select another scope deliberately, and
+`--url http://127.0.0.1:3211` for another port. URL precedence: `--url`, `SILLAGE_URL`,
+that scope's `.sillage/config.json`, then port 3210. A mismatch reveals no reader
+content and refuses CLI writes; directory checks are not authentication against
+other local processes. The existing v1 API remains available to old clients.
+
+Lists default to at most 100 rows with 3–4 fields, `--limit`/`--offset`, exact totals,
+and validated `--fields`; detail text defaults to 1000 UTF-16 characters with
+original size and a `--full` hint only when truncated. Lists never include bodies.
+`document --revision <id>` and `block <id> --revision <id>` retrieve exact revisions;
+`--full` returns original source, question/context and citation text without
+truncating storage or changing the reasoner payload.
+
+Imports require an explicit file, title, durable operation key and expected current
+revision (`null` for empty). Reuse the **identical key and payload**, including the
+guard, after an uncertain acknowledgement; a committed replay returns the original
+revision even if a later revision exists. Different content/guard under the key
+conflicts. A new intentional import uses a new key. `question --help` explains the
+existing retry-safe client key; `close <id>` is an idempotent organizational action,
+not cancellation. No automatic reserve/connect/disconnect retry is introduced.
+
+### Optional session integration or installed skill
+
+For ambient discovery, explicitly install a **project-scoped**, availability-only
+hook in a harness you have configured for local-only reasoning:
+
+```sh
+node bin/sillage.js setup --app claude --local-only
+node bin/sillage.js setup --app codex --local-only
+node bin/sillage.js setup --app opencode --local-only
+# Remove only Sillage-managed entries for the selected app:
+node bin/sillage.js setup --app claude --local-only --remove
+```
+
+Choose your app; you do not need all three. Hooks target POSIX shell/Node hosts;
+Windows/native harness sessions are not validated (see acceptance limits).
+Claude Code/Codex use native SessionStart
+hooks; OpenCode uses ambient system-context injection. Codex also requires you to
+explicitly enable `[features].hooks = true` in `~/.codex/config.toml`; setup reports
+this prerequisite and **never modifies user-home configuration**. These adapters
+are not proof that a named harness uses a local model. Setup requires your explicit
+`--local-only` confirmation and never grants cloud disclosure permission.
+
+Ordinary commands do not install anything. Setup records the selected loopback URL
+in `.sillage/config.json`, preserves third-party entries, refuses invalid/unmanaged
+files and symlink targets, and is a no-op when unchanged. It selects a PATH name only
+when it resolves to this executable; otherwise it pins the absolute Node/script
+paths. Rerun setup after relocation/reinstallation or PATH changes to repair paths.
+Removal leaves scoped connection configuration intact. Keep generated machine-local
+hook paths out of shared commits. Multi-file installation is not transactional:
+permission/disk failures may require rerunning setup; individual writes are atomic.
+
+At session start the hook calls `sillage context`, a privacy-restricted home that
+reports only availability/configuration, **never titles, IDs, counts, worker names,
+report text, questions or citations**. Outside the exact selected directory it
+reveals no report state. Hooks are bounded, do not reserve, infer or fetch externally.
+No session-end transcript/file capture is installed: durable local question/answer
+history is Sillage's lifecycle memory. This is the deliberate local-only subset of
+AXI's ambient-context recommendation.
+
+The [installable skill](skills/sillage/SKILL.md) is the on-demand alternative; either
+hook or skill is sufficient for discovery. Copy only `skills/sillage/` into your
+harness's skill directory. It uses portable runtime guidance rather than links
+outside that directory; an existing local checkout is still required. Public
+`/sillage` and `$ARGUMENTS` remain; nonstandard argument hints live under `metadata`
+and may be ignored by a harness. Generate with `npm run skill:generate`; CI checks
+freshness against the same static discovery/safety text used by the CLI.
 
 ### Using a real local agent
 
