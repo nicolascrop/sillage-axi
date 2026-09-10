@@ -75,7 +75,7 @@ test('HTTP surface rejects foreign origins, DNS rebinding, form CSRF, paths and 
   assert.match(page.headers.get('content-security-policy'), /img-src 'self'/);
   assert.equal(page.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(page.headers.get('access-control-allow-origin'), null);
-  assert.match(await page.text(), /Sillage/);
+  assert.match(await page.text(), /Sillage AXI/);
 });
 
 test('simultaneous HTTP pollers receive at most one live reservation', async t => {

@@ -29,7 +29,7 @@ export class Store {
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
     if (![0, 1, 2].includes(version)) {
       this.db.close();
-      throw new Error(`Unsupported Sillage database schema ${version}; refusing to change it`);
+      throw new Error(`Unsupported Sillage AXI database schema ${version}; refusing to change it`);
     }
     const requestColumns = new Set(this.db.prepare('PRAGMA table_info(requests)').all().map(column => column.name));
     if (version < 2 && requestColumns.size > 0 && !requestColumns.has('managed')) {

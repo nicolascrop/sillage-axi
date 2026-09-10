@@ -30,13 +30,13 @@ Coverage:
 
 ## Executed manual terminal walkthrough
 
-Used a real Sillage service **process**, not only an in-process database reopen:
+Used a real Sillage AXI service **process**, not only an in-process database reopen:
 
 ```sh
 SILLAGE_DB=.data/manual/walkthrough.sqlite SILLAGE_PORT=3219 node src/server.js
 # In a second terminal, after import and question:
 SILLAGE_URL=http://127.0.0.1:3219 npm run fake-agent
-# Stop only this Sillage process, then restart with the exact same DB and port:
+# Stop only this Sillage AXI process, then restart with the exact same DB and port:
 SILLAGE_DB=.data/manual/walkthrough.sqlite SILLAGE_PORT=3219 node src/server.js
 ```
 
@@ -95,17 +95,17 @@ git diff --check
 - New reader DOM tests cover hidden-by-default compact title/topic entries, toggle state, visible active/unavailable and connection instructions, literal untrusted worker/reply text, Ask question wording, live imports with no threads, French Markdown, safe-anchor scroll-offset calculation, unchanged-poll DOM identity, old-revision drafts and explicit review state, and preserved durable discussions.
 - File-capability fixtures verify no disk observation before selection, read-only handle use, unchanged-content deduplication, automatic updates, stop, mismatching-file rejection, conflict pause and permission loss. Store tests exercise atomic compare-and-import against stale revision IDs. Ordinary file input fallback explicitly requires reselect/import; it is not falsely called watching.
 - Static CSS assertions check readable prose width, narrow-screen stacking, horizontal table overflow, pointer and focus affordances. HTTP checks verify the fixed bundled SVG mark has only svg/rect/path elements, no active or external references, a local favicon/header use, no arbitrary report asset endpoint, same-origin CSP and protected lifecycle writes.
-- Initial implementation validation used jsdom and static CSS checks, but the subsequent accepted delivery evidence in [the merged UI change](https://github.com/nicolascrop/sillage/pull/2) records a real Chrome wide/narrow pass using `chrome-devtools-axi`: report import, queued question/unavailable state, compact Threads, active local-agent presence, a supplied cited answer, and reopening the durable thread. Chrome exposed a narrow question-bubble overflow; the merged fix and regression test use the usable client width. The recorded post-fix geometry is `viewport=390, clientWidth=390, scrollWidth=390, bubbleRight=378, overflow=false, threadsHidden=true, questionAction=Ask question`.
+- Initial implementation validation used jsdom and static CSS checks, but the subsequent accepted delivery evidence in [the merged UI change](https://github.com/nicolascrop/sillage-axi/pull/2) records a real Chrome wide/narrow pass using `chrome-devtools-axi`: report import, queued question/unavailable state, compact Threads, active local-agent presence, a supplied cited answer, and reopening the durable thread. Chrome exposed a narrow question-bubble overflow; the merged fix and regression test use the usable client width. The recorded post-fix geometry is `viewport=390, clientWidth=390, scrollWidth=390, bubbleRight=378, overflow=false, threadsHidden=true, questionAction=Ask question`.
 - That accepted Chrome evidence does **not** establish native File System Access permissions, live-update scroll anchoring, comprehensive accessibility, browser CSP enforcement, or local-model inference. The corresponding jsdom geometry/file handles remain controlled fixtures. Browser background throttling and editor file replacement can delay or interrupt explicit disk observation, as documented in the README.
 - The single implemented direction is Material Darker Air. Plum & Amber is documentation only. No Yuba/Lavish files, second report, Delta translation, external provider or unrelated local-only capture surface was introduced.
 
 ## UI delivery validation follow-up
 
-The subsequent validation recorded in [the existing UI follow-up](https://github.com/nicolascrop/sillage/pull/3) extended the earlier UI evidence above:
+The subsequent validation recorded in [the existing UI follow-up](https://github.com/nicolascrop/sillage-axi/pull/3) extended the earlier UI evidence above:
 
 - **40 tests passed, 0 failed** before delivery validation, using loopback and disposable databases without a model, external provider, secret or reader report.
 - A real Chrome 148 pass through `chrome-devtools-axi` covered wide 1280×900 and narrow 390×844 layouts. It observed no horizontal overflow; the narrow question bubble measured 351px wide at x=12 inside a 375px usable client width. It also checked focusable passage affordances, the unavailable and active local-agent states, compact Threads after toggling, the Ask question wording, and a cited answer through the JSONL bridge. A local compare-and-import changed revision appeared automatically without reload, preserving the open answer and original quote while showing **Passage to review**. The secure loopback page exposed `showOpenFilePicker`, and the UI surfaced the explicit read-only connection path plus its fallback guidance. Browser background throttling and editor file replacement can still delay or interrupt explicit disk observation, as documented in the README.
-- The browser accessibility snapshot exposed the Sillage mark, local-agent state, import and Threads controls, focusable passages, and the **Ask question** action. Evidence screenshots and geometry were recorded under `/tmp/no-mistakes-evidence/01M236K1M6A33Q6JDXRBKNJP69/` during that validation, not this merge reconciliation.
+- The browser accessibility snapshot exposed the Sillage AXI mark, local-agent state, import and Threads controls, focusable passages, and the **Ask question** action. Evidence screenshots and geometry were recorded under `/tmp/no-mistakes-evidence/01M236K1M6A33Q6JDXRBKNJP69/` during that validation, not this merge reconciliation.
 - File-picker API availability and the connection UI do not prove native file permission/observation behavior. The supplied bridge answers validate transport and citations, not local-model inference; comprehensive accessibility and browser CSP enforcement remain outside the recorded pass.
 
 ## Stdio launch-command follow-up
@@ -164,7 +164,7 @@ git diff --check
 ## AXI façade and minimum audit corrections — 2026-09-10
 
 Implemented on `fm/sillage-axi-audit`, based on `982fb5ab7b2f71b58ca42c5f8a1f9a0eb1982172`,
-**without renaming Sillage**. Reference: [AXI](https://axi.md/) detailed guidance at
+**before the product identity migration**. Reference: [AXI](https://axi.md/) detailed guidance at
 `7626619a2d42d63e8c666e84bb93d20cc47170a7` (2026-09-09), TOON specification v4.1,
 and Lavish practices at `ca4c59d5b3ef84ae7f6f7f93fcaa415ade8a9c73` (2026-09-07).
 This records local candidate evidence, not a claim of green remote CI or certification.
@@ -215,3 +215,35 @@ and replaces each file atomically, but a multi-file disk/permission failure can 
 a partial installation requiring repair. No new native file-picker, accessibility,
 resource-isolation or external-model evidence is claimed beyond prior limitations.
 No global exactly-once guarantee is made for reserve/connect/disconnect or inference.
+
+## Sillage AXI identity migration — 2026-09-10
+
+Validated in the isolated `fm/sillage-axi-rename` worktree after confirming the
+canonical remote `git@github.com:nicolascrop/sillage-axi.git` and a clean `main`
+base. `gh-axi repo view nicolascrop/sillage-axi` and
+`gh-axi repo view nicolascrop/sillage` both resolved to the renamed public
+repository `nicolascrop/sillage-axi`; GitHub's historical URL is therefore an
+active redirect rather than a second repository. No external provider, package
+publication or network fetch was used by the application/tests.
+
+The [migration guide](migration-sillage-axi.md) owns the compatibility map and
+preserved v1 invariants. The migration tests execute both command paths from
+another directory for
+`--help`/`--version`, assert that probes create no database, verify both npm
+installation bins offline, and retain the historical direct Node entrypoints.
+The full suite also exercises the unchanged HTTP, JSONL, schema, loopback and
+local-only contracts:
+
+```sh
+npm ci --ignore-scripts --offline --cache .npm-cache --no-audit --no-fund
+node --test test/rename.test.js test/cli.test.js
+npm test
+npm run check
+node --check bin/sillage-axi.js
+npm run skill:check
+git diff --check
+```
+
+The commands above are the executable examples for the rename; runtime tests
+use only loopback and disposable `.data/test/` databases. This section records
+validation scope, not npm publication or remote CI status.

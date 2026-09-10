@@ -136,10 +136,10 @@ export async function serve() {
       app.server.close();
       await failure('service', 'Cannot listen on the local port', 'Choose a free SILLAGE_PORT; run only one service per SILLAGE_DB.');
     });
-    app.server.listen(port, '127.0.0.1', () => console.error(`Sillage: http://127.0.0.1:${port} (local only)`));
+    app.server.listen(port, '127.0.0.1', () => console.error(`Sillage AXI: http://127.0.0.1:${port} (local only)`));
     for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => app.server.close());
   } catch {
-    await failure('storage', 'Cannot open the local database; it may be inaccessible or use an unsupported schema', 'Check SILLAGE_DB permissions and use a compatible Sillage version; do not delete reader data.');
+    await failure('storage', 'Cannot open the local database; it may be inaccessible or use an unsupported schema', 'Check SILLAGE_DB permissions and use a compatible Sillage AXI version; do not delete reader data.');
   }
 }
 if (isEntry(import.meta.url) && !handled) await serve();
