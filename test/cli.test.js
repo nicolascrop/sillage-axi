@@ -80,7 +80,7 @@ test('empty inspection hints identify the next executable local command', async 
   const doc = app.store.importReport({ title: 'Report', source: '# Heading\n\nExact context.' });
   const reportThreads = decode((await app.cli(['threads'])).stdout);
   assert.equal(reportThreads.revision_id, doc.id);
-  assert.ok(reportThreads.help[0].includes(`sillage-axi blocks --revision ${doc.id}`));
+  assert.ok(reportThreads.help[0].includes(`node '${bin}' blocks --revision ${doc.id}`));
 
   const historicalBlocks = decode((await app.cli(['blocks', '--revision', String(historicalEmptyRevision)])).stdout);
   assert.equal(historicalBlocks.revision_id, historicalEmptyRevision);

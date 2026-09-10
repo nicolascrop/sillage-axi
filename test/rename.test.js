@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, existsSync, rmSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, existsSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { executable } from '../src/cli.js';
 
 const root = resolve('.');
@@ -40,6 +41,26 @@ test('new and historical CLI paths are finite outside the checkout', t => {
     assert.equal(existsSync(join(outside, '.data')), false);
     assert.equal(existsSync(join(outside, '.sillage')), false);
   }
+});
+
+test('embedded main keeps setup hooks on a Sillage entrypoint', t => {
+  mkdirSync(join(root, '.data/test'), { recursive: true });
+  const outside = mkdtempSync(join(root, '.data/test/rename-embedded-'));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  const consumer = join(outside, 'consumer.mjs');
+  const emptyPath = join(outside, 'empty-bin');
+  mkdirSync(emptyPath);
+  writeFileSync(consumer, `import { main } from ${JSON.stringify(pathToFileURL(join(root, 'src/cli.js')).href)};
+await main(['setup', '--app', 'claude', '--local-only', '--url', 'http://127.0.0.1:1']);
+`);
+  const result = spawnSync(process.execPath, [consumer], {
+    cwd: outside,
+    encoding: 'utf8',
+    env: { ...process.env, PATH: emptyPath, HOME: outside },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const command = JSON.parse(readFileSync(join(outside, '.claude/settings.json'))).hooks.SessionStart[0].hooks[0].command;
+  assert.equal(command, `'${process.execPath}' '${executable}' 'context' '--scope' '${outside}' '--url' 'http://127.0.0.1:1' # sillage-managed-context-v1`);
 });
 
 test('migration documentation and installed skill state the additive mapping once', () => {

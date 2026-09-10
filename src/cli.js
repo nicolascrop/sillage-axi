@@ -1,5 +1,5 @@
 import { readFileSync, realpathSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { output, failure, version } from './entry.js';
@@ -11,9 +11,23 @@ import { isTruncated } from './inspection.js';
 // Keep the exported path stable for direct ESM consumers; CLI invocations use their
 // actual path so setup can repair either the new command or the old alias.
 export const executable = fileURLToPath(new URL('../bin/sillage.js', import.meta.url));
-const invokedExecutable = () => process.argv[1] ? resolve(process.argv[1]) : executable;
+const primaryExecutable = fileURLToPath(new URL('../bin/sillage-axi.js', import.meta.url));
 export const shellQuote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
-function connection(options) {
+function invocation() {
+  const candidate = process.argv[1] ? resolve(process.argv[1]) : null;
+  if (!candidate) return { executable, command: primaryCommand };
+  let actual;
+  try { actual = realpathSync(candidate); } catch { return { executable, command: primaryCommand }; }
+  if (![executable, primaryExecutable].some(path => {
+    try { return realpathSync(path) === actual; } catch { return false; }
+  })) return { executable, command: primaryCommand };
+  const direct = ['sillage.js', 'sillage-axi.js'].includes(basename(candidate));
+  return { executable: candidate, command: direct ? `node ${shellQuote(candidate)}` : primaryCommand };
+}
+function usageFor(usage, command) {
+  return usage.startsWith(primaryCommand) ? `${command}${usage.slice(primaryCommand.length)}` : usage;
+}
+function connection(options, command = primaryCommand) {
   let scope;
   try { scope = realpathSync(resolve(options.scope || process.cwd())); }
   catch { throw new Usage('--scope must name an existing local directory'); }
@@ -21,7 +35,7 @@ function connection(options) {
   let config = {};
   if (!options.url && !process.env.SILLAGE_URL) {
     try { config = JSON.parse(readFileSync(resolve(scope, '.sillage/config.json'), 'utf8')); }
-    catch (error) { if (error.code !== 'ENOENT') throw new Usage(`Invalid scoped configuration; repair with ${primaryCommand} setup --app <app> --local-only --url <loopback-origin>`); }
+    catch (error) { if (error.code !== 'ENOENT') throw new Usage(`Invalid scoped configuration; repair with ${command} setup --app <app> --local-only --url <loopback-origin>`); }
   }
   let origin;
   try { origin = localUrl(options.url || process.env.SILLAGE_URL || config.url || 'http://127.0.0.1:3210'); }
@@ -48,25 +62,26 @@ async function request(origin, path, body, method = 'POST', scope) {
 const inspectionPath = (scope, view, options = {}, id) => `/api/inspect?${new URLSearchParams({ scope, view,
   ...Object.fromEntries(Object.entries(options).filter(([key]) => ['revision', 'fields', 'limit', 'offset', 'full'].includes(key)).map(([k, v]) => [k, String(v)])), ...(id ? { id } : {}) })}`;
 export async function main(argv) {
-  let command = 'home'; let next = `${primaryCommand} --help`;
+  const current = invocation();
+  let command = 'home'; let next = `${current.command} --help`;
   try {
     const parsed = parse(argv);
     if (parsed.help) return output(helpFor(parsed.help));
     if (parsed.version) { console.log(version); return; }
     const { name, options, args } = parsed; command = name;
-    next = helpFor(name).usage;
+    next = usageFor(helpFor(name).usage, current.command);
     if (name === 'agent-help') return output({ protocol: readFileSync(new URL('../docs/agent-protocol.md', import.meta.url), 'utf8'), lifecycle: readFileSync(new URL('../docs/local-agent.md', import.meta.url), 'utf8') });
-    const { scope, origin } = connection(options);
+    const { scope, origin } = connection(options, current.command);
     const write = (path, body, method = 'POST') => request(origin, path, body, method, scope);
     const suffix = ` --scope ${shellQuote(scope)} --url ${shellQuote(origin)}`;
-    const hint = text => `${text}${suffix}`;
+    const hint = text => `${usageFor(text, current.command)}${suffix}`;
     next = hint(helpFor(name).usage);
     if (name === 'setup') {
       const { setup } = await import('./setup.js');
-      return output(await setup({ ...options, scope, origin, executable: invokedExecutable() }));
+      return output(await setup({ ...options, scope, origin, executable: current.executable }));
     }
     if (name === 'serve') {
-      if (options.url) throw new Usage(`serve uses SILLAGE_PORT, not --url; for example SILLAGE_PORT=3211 ${primaryCommand} serve`);
+      if (options.url) throw new Usage(`serve uses SILLAGE_PORT, not --url; for example SILLAGE_PORT=3211 ${current.command} serve`);
       process.chdir(scope);
       const { serve } = await import('./server.js');
       return serve();
@@ -81,14 +96,14 @@ export async function main(argv) {
       }
       const help = [];
       if (name === 'home') {
-        if (data.service === 'unavailable') help.push(`${primaryCommand} serve --scope ${shellQuote(scope)} (set SILLAGE_PORT to match ${origin}; no service was started)`);
-        else if (data.service === 'out_of_scope') help.push(`${primaryCommand} --scope <service-directory> --url <loopback-origin>`);
+        if (data.service === 'unavailable') help.push(`${current.command} serve --scope ${shellQuote(scope)} (set SILLAGE_PORT to match ${origin}; no service was started)`);
+        else if (data.service === 'out_of_scope') help.push(`${current.command} --scope <service-directory> --url <loopback-origin>`);
         else if (!data.document) help.push(hint(commandsImportExample()));
         else help.push(...discovery.slice(0, 2).map(hint));
-        const displayExecutable = invokedExecutable();
+        const displayExecutable = current.executable;
         data = { bin: displayExecutable.startsWith(`${homedir()}/`) ? `~${displayExecutable.slice(homedir().length)}` : displayExecutable, description, ...data };
       } else if (name === 'context') {
-        help.push(`Only a separately authorized local-only reasoner may invoke ${primaryCommand} to inspect reader content.`);
+        help.push(`Only a separately authorized local-only reasoner may invoke ${current.command} to inspect reader content.`);
       } else if (name === 'blocks' || name === 'threads') {
         if (data.total) help.push(hint(name === 'blocks' ? `${primaryCommand} block <id> --revision ${data.revision_id}` : `${primaryCommand} thread <id>`));
         else if (name === 'blocks' && data.current_revision_id !== undefined) help.push(hint(commandsImportExample(data.current_revision_id)));
