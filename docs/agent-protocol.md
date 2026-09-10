@@ -125,4 +125,5 @@ New CLI writes/agent requests also send optional `X-Sillage-Scope` containing th
 percent-encoded canonical directory, checked on each request before writes. Old
 clients need not send it. These are accidental cross-scope safeguards, not a new
 authentication boundary. Existing routes, v1 context/citations and JSONL events are
-unchanged. Only the finite shell observation boundary converts JSON to TOON.
+unchanged. The finite CLI boundary converts its JSON responses to TOON; HTTP and
+JSONL remain JSON and JSONL respectively.

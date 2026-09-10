@@ -51,7 +51,8 @@ or the unchanged `npm start`. `sillage demo` explicitly consumes one demo reques
 `sillage attach` explicitly switches to the **continuous JSONL** bridge. For the full
 reply/citation contract, use `sillage agent-help` or the connection guide below.
 
-Finite CLI observations and errors use **TOON** on stdout; version is a bare string.
+Finite CLI results (observations and mutations) and errors use **TOON** on stdout;
+version is a bare string.
 Progress/diagnostics use stderr. Exit codes are 0 success/no-op, 1 runtime failure,
 2 invalid usage; no command prompts. Every command has `--help`; `-v`, `-V`,
 `--version` are side-effect-free. The historical Node scripts retain their launch
