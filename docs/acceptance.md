@@ -160,3 +160,58 @@ git diff --check
 - Node.js **v24.18.1**, npm **11.16.0**: **20 focused tests and all 48 repository tests passed, 0 failed**; syntax and whitespace checks passed. Installation used the worktree-local cache; tests remained offline apart from loopback HTTP and used disposable databases.
 - Full coverage retains managed-marker migration/restart ownership, legacy lease compatibility, original citations, no-silent-remap revisions, durable threads, live-update/file-capability fixtures, narrow bubble containment, and local asset/HTTP safety. No runtime behavior, local-only boundary or unrelated main work was removed.
 - This reconciliation performed no new Chrome pass and does not expand the recorded browser evidence above. Final remote CI is a separate delivery gate, not claimed by these local results.
+
+## AXI façade and minimum audit corrections — 2026-09-10
+
+Implemented on `fm/sillage-axi-audit`, based on `982fb5ab7b2f71b58ca42c5f8a1f9a0eb1982172`,
+**without renaming Sillage**. Reference: [AXI](https://axi.md/) detailed guidance at
+`7626619a2d42d63e8c666e84bb93d20cc47170a7` (2026-09-09), TOON specification v4.1,
+and Lavish practices at `ca4c59d5b3ef84ae7f6f7f93fcaa415ade8a9c73` (2026-09-07).
+This records local candidate evidence, not a claim of green remote CI or certification.
+The delivery pipeline validates the committed candidate; CI now records its exact
+`GITHUB_SHA` in the job summary rather than attributing old results to a new revision.
+
+```sh
+npm ci --ignore-scripts --offline --cache .npm-cache --no-audit --no-fund
+npm test
+npm run check
+git diff --check
+```
+
+Node **v24.18.1**, npm **11.16.0**: **67 tests passed, 0 failed**. `check` covers
+JavaScript syntax across runtime, executable, scripts, tests and UI, plus generated
+skill freshness; it is not represented as lint or type checking. Runtime/test
+operations are offline apart from loopback. Scratch databases and installations
+remain under gitignored `.data/`; no reader data is a deliverable.
+
+| Finding | Correction and regression evidence |
+| --- | --- |
+| F01 — no finite CLI | Real `sillage` bin, read-only home with content/queue/agent state, unavailable/empty/foreign-directory results, explicit serve/demo/attach. Tests execute the binary and an offline local npm installation outside the checkout; probes do not create databases or reserve work. |
+| F02 — mutating discovery | All four entrypoints reject unknown input and exit naturally for help/version even with queued work and invalid runtime configuration. Strict per-command validation, structured stdout errors, 0/1/2 exits. Bare version paths are compared with a same-process Node baseline and checked not to load business dependencies. Legacy JSON demo and continuous JSONL ready/connect/request/save/stop contracts remain tested. |
+| F03 — unbounded observation | Additive scoped HTTP projections, 3–4-field paginated lists and independent totals/counts. Zero/one/105-thread cases; invalid fields/parameters; exact revision lookup; bounded source/context/body/citation previews with sizes and conditional hints; Unicode/quotes/newlines round-trip and exact `--full`; unmatched provenance and closure/answer aggregates. Existing full v1 payloads stay unchanged. |
+| F04 — uncertain imports | Optional durable operation keys and original-revision replay, conflicting payload/guard refusal, lost-ack simulation across restart and later revisions, four concurrent processes, deliberate new-key imports, old unkeyed repeats, unchanged HTTP 201 document shape. |
+| F05 — no ambient discovery | Explicit scoped setup for Claude Code/Codex/OpenCode, tested idempotence, removal, repair, verified PATH/fallback, third-party preservation and invalid/unmanaged/symlink refusal. Hook execution emits availability only and does not consume questions or expose another directory. No home configuration, model launch or transcript capture. |
+| F06 — nonportable skill | 3.3 KB generated skill sharing CLI safety/discovery text, standard frontmatter with extension metadata, no parent-relative references, copied-only install and relocated runtime tests, stale generation detected. The frozen Lavish strict frontmatter validator additionally returned `valid:true, errors:[]`. |
+| F07 — insufficient evidence | All new contracts run with the existing security/store/relay/UI suite in CI; syntax and skill freshness are mandatory. Actual installation and relative version-path checks supplement the previous 48 tests. |
+
+A focused Chrome **148** smoke through `chrome-devtools-axi` used a disposable
+current-branch service and public example fixtures: report renders; asking through
+the UI saves a waiting question with **local agent unavailable**; explicit CLI demo
+produces the labeled **not an AI answer** reply; a CLI import updates the open reader
+to revision 2 while its changed thread retains the original snapshot and says
+**Passage to review**, never silently reattaching. At 1440px and 390px, document
+`scrollWidth` equaled `clientWidth`; the narrow bubble stayed horizontally within
+the viewport. The tested flow loaded no external resource and logged no console
+messages. The scratch tab/server were closed; shared Chrome was not stopped.
+
+**Limits and deliberate local-only adaptations:** native Claude Code/Codex/OpenCode
+sessions and Windows shells were not exercised. Tests execute generated shell hooks
+and the OpenCode plugin callback, not model inference. Codex requires the user's
+explicit hooks feature flag; setup reports but does not enable this user-home setting.
+The hook is a privacy-restricted availability home, not an ambient private-report
+feed. General transcript/file capture is deliberately excluded: the local durable
+question/answer lifecycle is the relevant memory. Setup preflights malformed configs
+and replaces each file atomically, but a multi-file disk/permission failure can leave
+a partial installation requiring repair. No new native file-picker, accessibility,
+resource-isolation or external-model evidence is claimed beyond prior limitations.
+No global exactly-once guarantee is made for reserve/connect/disconnect or inference.

@@ -1,13 +1,13 @@
 import { createInterface } from 'node:readline';
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { legacyGate, isEntry, failure } from './entry.js';
+const handled = await legacyGate(import.meta.url, 'attach');
 import { localClient } from './agent-client.js';
 
 /** JSONL bridge for an ALREADY running local reasoner. No model, subprocess,
  * tools, file access or fabricated answer. stdin is the sole reply capability. */
 export async function runLocalAgent({ base = 'http://127.0.0.1:3210', input = process.stdin,
-  output = process.stdout, interval = 2000 } = {}) {
-  const post = localClient(base);
+  output = process.stdout, interval = 2000, scope } = {}) {
+  const post = localClient(base, { scope });
   const lines = createInterface({ input, crlfDelay: Infinity });
   const emit = value => output.write(`${JSON.stringify(value)}\n`);
   let session; let pending; let timer; let ticking; let stopped = false;
@@ -73,8 +73,8 @@ export async function runLocalAgent({ base = 'http://127.0.0.1:3210', input = pr
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (isEntry(import.meta.url) && !handled) {
   // SIGINT/termination without EOF is still bounded by the server's heartbeat.
   runLocalAgent({ base: process.env.SILLAGE_URL || 'http://127.0.0.1:3210' })
-    .catch(error => { console.error(error.message); process.exitCode = 1; });
+    .catch(() => failure('agent', 'Cannot start the local JSONL bridge', 'Check SILLAGE_URL (loopback HTTP origin); connect only an already-running local-only reasoner.'));
 }

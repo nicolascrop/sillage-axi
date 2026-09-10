@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   test:
-    name: Node 24 tests and syntax checks
+    name: Node 24 offline contracts, syntax and skill freshness
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -22,3 +22,5 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm test
       - run: npm run check
+      - name: Record validated revision
+        run: printf 'Validated `%s` with Node 24 offline tests, syntax checks and generated-skill freshness.\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

@@ -40,6 +40,10 @@ export class Store {
         id INTEGER PRIMARY KEY, title TEXT NOT NULL, source TEXT NOT NULL,
         html TEXT NOT NULL, toc TEXT NOT NULL, created_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS import_operations (
+        operation_key TEXT PRIMARY KEY, payload_hash TEXT NOT NULL,
+        revision_id INTEGER NOT NULL REFERENCES revisions(id)
+      );
       CREATE TABLE IF NOT EXISTS blocks (
         revision_id INTEGER NOT NULL REFERENCES revisions(id), id TEXT NOT NULL,
         ordinal INTEGER NOT NULL, kind TEXT NOT NULL, source TEXT NOT NULL, text TEXT NOT NULL,
@@ -85,10 +89,26 @@ export class Store {
   revisionId() {
     return this.db.prepare('SELECT MAX(id) AS id FROM revisions').get().id;
   }
-  importReport({ title, source, expected_revision_id }) {
+  revision(id) {
+    const row = this.db.prepare('SELECT * FROM revisions WHERE id=?').get(id);
+    requireValue(row, 404, 'Revision not found');
+    return { ...row, toc: JSON.parse(row.toc), blocks: this.blocks(row.id) };
+  }
+  importReport({ title, source, expected_revision_id, operation_key }) {
     text(title, 'title', 200); text(source, 'source', 1_000_000);
+    if (operation_key !== undefined) text(operation_key, 'operation_key', 100);
+    const payloadHash = digest({ title, source, expected_revision_id });
     requireValue(source.split('\n').length <= 20_000, 400, 'Report exceeds 20,000 lines');
     return this.transaction(() => {
+      // Reconcile a committed operation before checking today's revision guard.
+      // The guard is part of the payload, so changing it under a key conflicts.
+      if (operation_key !== undefined) {
+        const prior = this.db.prepare('SELECT * FROM import_operations WHERE operation_key=?').get(operation_key);
+        if (prior) {
+          requireValue(prior.payload_hash === payloadHash, 409, 'operation_key reused with different import');
+          return this.revision(prior.revision_id);
+        }
+      }
       const previous = this.current();
       if (expected_revision_id !== undefined) requireValue(expected_revision_id === (previous?.id ?? null),
         409, 'The report changed elsewhere. Live file updates paused; review the current report before reconnecting the file.');
@@ -101,6 +121,9 @@ export class Store {
         (revision_id,id,ordinal,kind,source,text,start_line,end_line,fingerprint) VALUES(?,?,?,?,?,?,?,?,?)`);
       rendered.blocks.forEach((b, i) => insert.run(revision, b.id, i, b.kind, b.source,
         b.text, b.start_line, b.end_line, b.fingerprint));
+      if (operation_key !== undefined) this.db.prepare(
+        'INSERT INTO import_operations(operation_key,payload_hash,revision_id) VALUES(?,?,?)'
+      ).run(operation_key, payloadHash, revision);
       return this.current();
     });
   }
