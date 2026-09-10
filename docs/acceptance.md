@@ -57,7 +57,7 @@ node --test test/http.test.js test/ui.test.js
 
 ## Browser walkthrough and limitations
 
-The short human walkthrough is in [README.md](../README.md#walkthrough), using the two committed sample reports. A browser binary/`chrome-devtools-axi` was not available in this lane. **No real-browser visual inspection is claimed.** jsdom exercised the reader's actual JavaScript against the local service, including selection, forms, close/reopen, polling and escaping, but cannot verify real layout/scroll geometry, CSP enforcement, or all accessibility behavior. Those remain a small manual browser check before treating the prototype as more than this local slice.
+The short human walkthrough is in [README.md](../README.md#walkthrough), using the two committed sample reports. A browser binary/`chrome-devtools-axi` was not available during the original implementation validation. **That initial pass did not include real-browser visual inspection.** jsdom exercised the reader's actual JavaScript against the local service, including selection, forms, close/reopen, polling and escaping, but cannot verify real layout/scroll geometry, CSP enforcement, or all accessibility behavior. The later UI delivery's accepted Chrome coverage and remaining limitations are recorded below.
 
 Excalidraw is intentionally an explicit unsupported, source-preserving block; there is no editor or unsafe HTML/SVG embed. This is a prototype with conservative unmatched behavior, one question/reply per thread, and no automated reattachment or external provider policy.
 
@@ -78,7 +78,7 @@ git diff --check
 - Checked the README and skill against `package.json`, `src/server.js`, `src/store.js`, `src/render.js`, `public/app.js`, and `src/fake-agent.js`. Existing README shell examples and safety-limit text are unchanged. The skill's request/answer examples use the implemented v1 routes, original revision/block IDs, custom write header, exclusive leases, and idempotent terminal results.
 - Ad hoc documentation checks used installed PyYAML to parse the skill frontmatter, Markdown-it to parse Markdown and check local links/heading anchors, and `bash -n` for shell fences. JSON fences parsed successfully. No dedicated Markdown linter or documentation-check script is configured in the project.
 - Executed the skill's actual `curl` examples against a separate loopback service process, substituting only the configured port and returned IDs/tokens. Verified import, passage lookup, question retry, reservation, cited answer, identical-answer retry, and empty queue. Restarted that process with the same database and verified persistence; imported `examples/report-changed.md` and verified `needs_review` with the original context intact. An old-revision question in a closed thread still received a labeled fake-agent answer citing the original revision; the next fake-agent invocation reported idle. A separate request stored an explicit terminal failure. The test service was stopped afterward; all private artifacts remain under ignored `.data/public-docs/`.
-- `chrome-devtools-axi` was not available in this lane or the inspected Windows host tool installation. **No additional real-browser validation is claimed**; the layout, scrolling, browser CSP, and accessibility limitations above still apply. The listener was never exposed beyond loopback.
+- `chrome-devtools-axi` was not available in that public-documentation lane or the inspected Windows host tool installation. **That follow-up added no real-browser validation**; it retained the initial browser coverage limitations. The listener was never exposed beyond loopback.
 
 ## Material Darker Air / local-agent / live-revision iteration
 
@@ -95,8 +95,28 @@ git diff --check
 - New reader DOM tests cover hidden-by-default compact title/topic entries, toggle state, visible active/unavailable and connection instructions, literal untrusted worker/reply text, Ask question wording, live imports with no threads, French Markdown, safe-anchor scroll-offset calculation, unchanged-poll DOM identity, old-revision drafts and explicit review state, and preserved durable discussions.
 - File-capability fixtures verify no disk observation before selection, read-only handle use, unchanged-content deduplication, automatic updates, stop, mismatching-file rejection, conflict pause and permission loss. Store tests exercise atomic compare-and-import against stale revision IDs. Ordinary file input fallback explicitly requires reselect/import; it is not falsely called watching.
 - Static CSS assertions check readable prose width, narrow-screen stacking, horizontal table overflow, pointer and focus affordances. HTTP checks verify the fixed bundled SVG mark has only svg/rect/path elements, no active or external references, a local favicon/header use, no arbitrary report asset endpoint, same-origin CSP and protected lifecycle writes.
-- `chrome-devtools-axi` is not available in this lane. **No real-browser visual, native File System Access, scroll-anchoring or accessibility inspection is claimed.** jsdom geometry and file handles are controlled fixtures, not proof of native layout/permission behavior. A manual wide/narrow browser pass remains necessary; browser background throttling and editor file replacement can delay or interrupt explicit disk observation, as documented in the README.
+- Initial implementation validation used jsdom and static CSS checks, but the subsequent accepted delivery evidence in [the merged UI change](https://github.com/nicolascrop/sillage/pull/2) records a real Chrome wide/narrow pass using `chrome-devtools-axi`: report import, queued question/unavailable state, compact Threads, active local-agent presence, a supplied cited answer, and reopening the durable thread. Chrome exposed a narrow question-bubble overflow; the merged fix and regression test use the usable client width. The recorded post-fix geometry is `viewport=390, clientWidth=390, scrollWidth=390, bubbleRight=378, overflow=false, threadsHidden=true, questionAction=Ask question`.
+- That accepted Chrome evidence does **not** establish native File System Access permissions, live-update scroll anchoring, comprehensive accessibility, browser CSP enforcement, or local-model inference. The corresponding jsdom geometry/file handles remain controlled fixtures. Browser background throttling and editor file replacement can delay or interrupt explicit disk observation, as documented in the README.
 - The single implemented direction is Material Darker Air. Plum & Amber is documentation only. No Yuba/Lavish files, second report, Delta translation, external provider or unrelated local-only capture surface was introduced.
+
+## Stdio launch-command follow-up
+
+Validated in the isolated `fm/sillage-stdio-command-followup` worktree, based on the merged UI default branch, with Node.js **v24.18.1** and npm **11.16.0**:
+
+```sh
+node --test test/stdio-command.test.js test/relay.test.js test/ui.test.js
+npm test
+npm run check
+node --check test/stdio-command.test.js
+node --check test/relay.test.js
+node --check test/ui.test.js
+git diff --check
+```
+
+- **16 focused tests and all 44 repository tests passed, 0 failed**; syntax and whitespace checks passed. Dependency installation used `npm ci --ignore-scripts --no-audit --no-fund --cache .npm-cache`; the tests and syntax checks afterward were offline, using only loopback and disposable databases.
+- The four new documentation-contract tests failed on the old instructions, then passed after all public attachment paths switched to `node src/local-agent.js`. README, connection-guide and UI examples include `SILLAGE_URL=http://127.0.0.1:3211 node src/local-agent.js` for a nondefault loopback port. The npm script is retained only as a human-invocation convenience; its normal banner-producing form is not advertised for raw JSONL attachment.
+- The UI test checks both displayed command forms. The actual direct Node subprocess test uses an ephemeral loopback port via `SILLAGE_URL`, parses every stdout line as JSON, and now checks the complete readiness/connect/request/save/stop sequence through stdio close. Fixture replies still validate transport and original citations, not model inference. No runtime protocol or local-only boundary changed.
+- A focused Chrome run was subsequently completed for this command/documentation follow-up through the isolated `chrome-devtools-axi` session: the updated connection panel was inspected at 1440px and 390px, with the direct Node command, stderr separation, npm-banner warning, nondefault loopback example and local-only cautions visible; both viewports reported `clientWidth === scrollWidth`. This extends visual evidence only to the updated connection panel and does not claim model inference or broader browser coverage.
 
 ## Standalone icon proposal board
 

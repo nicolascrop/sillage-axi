@@ -97,7 +97,7 @@ curl -sS --fail-with-body http://127.0.0.1:3210/api/agent/connect \
   -d '{"worker":"active-local-agent"}'
 ```
 
-Keep the returned `session_id`. Replace `SESSION_ID` below. Send a heartbeat every **5 seconds**, including while answering; presence expires after **20 seconds**. The optional `npm run local-agent` bridge handles heartbeats and polling for an attached stdio-capable local reasoner, but **is not AI itself**.
+Keep the returned `session_id`. Replace `SESSION_ID` below. Send a heartbeat every **5 seconds**, including while answering; presence expires after **20 seconds**. The optional `node src/local-agent.js` bridge handles heartbeats and polling for an attached stdio-capable local reasoner, but **is not AI itself**.
 
 ```sh
 curl -sS --fail-with-body http://127.0.0.1:3210/api/agent/heartbeat \

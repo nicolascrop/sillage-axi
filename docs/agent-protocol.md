@@ -13,7 +13,7 @@ The service only binds `127.0.0.1`. `Host` must be `127.0.0.1:PORT` or `localhos
 
 ## Managed active-local-agent lifecycle
 
-For visible real-agent presence and bounded terminal failures, use the [local-agent connection guide](local-agent.md): connect once, heartbeat every 5 seconds, reserve using the returned `session_id`, then post through the unchanged answer endpoint. The optional `npm run local-agent` JSONL bridge maintains that loop for an already-running local reasoner; it does not run a model or invent replies.
+For visible real-agent presence and bounded terminal failures, use the [local-agent connection guide](local-agent.md): connect once, heartbeat every 5 seconds, reserve using the returned `session_id`, then post through the unchanged answer endpoint. The optional `node src/local-agent.js` JSONL bridge maintains that loop for an already-running local reasoner; it does not run a model or invent replies.
 
 Managed presence expires after 20 seconds, and managed reservations have a fixed 120-second answering deadline. Disconnect, expiry or service restart terminally fails exact unfinished managed work. Queued unclaimed questions remain saved and explicitly unavailable in the UI. Presence is ephemeral; only one service per database is supported. Legacy reservations below retain their original reclaim behavior and do **not** indicate active presence. Legacy/demo reservation attempts return 409 while a managed worker is connected.
 
