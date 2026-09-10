@@ -1,6 +1,6 @@
-# Sillage
+# Sillage AXI
 
-A small **local-only Markdown report reader** with temporary question bubbles and durable passage conversations. One reader, one PC, one report with multiple revisions. Sillage uses **no external AI provider**, telemetry, accounts, or cloud services.
+A small **local-only Markdown report reader** with temporary question bubbles and durable passage conversations. One reader, one PC, one report with multiple revisions. Sillage AXI uses **no external AI provider**, telemetry, accounts, or cloud services.
 
 ## Run
 
@@ -26,30 +26,40 @@ npm test        # offline: rendering, database, HTTP, fake CLI, and reader DOM t
 npm run check  # JavaScript syntax and generated-skill freshness checks
 ```
 
-### Agent-facing CLI (AXI façade, same Sillage name)
+### Agent-facing CLI (AXI façade)
 
-The package exposes `sillage` via `bin/sillage.js`. A global installation is
-optional: from a preinstalled checkout, every command works offline as
-`node /absolute/path/to/sillage/bin/sillage.js …`. To expose the executable on PATH,
-explicitly run `npm link --ignore-scripts` in that checkout; there is no automatic
-installer, updater or registry check at runtime.
+The package exposes `sillage-axi` as its primary command. The historical `sillage`
+command and `node bin/sillage.js` path remain compatible aliases. From a preinstalled
+checkout, every command works offline as `node /absolute/path/to/sillage-axi/bin/sillage-axi.js …`
+or through the historical `node /absolute/path/to/sillage-axi/bin/sillage.js …` path. To expose
+both executables on PATH, explicitly run `npm link --ignore-scripts` in that checkout;
+there is no automatic installer, updater or registry check at runtime.
+
+The skill keeps its established install path and public `/sillage` invocation; only
+its product commands are shown below with the new primary name. See the
+[rename migration guide](docs/migration-sillage-axi.md) for the complete mapping.
 
 ```sh
-node bin/sillage.js                 # finite read-only home, not server startup
+sillage-axi                         # finite read-only home, not server startup
+sillage-axi --help
+sillage-axi document                 # source preview; --full retrieves exact text
+sillage-axi blocks --fields id,kind,ordinal
+sillage-axi threads                  # bounded list plus total and derived counts
+sillage-axi thread <id> --full
+sillage-axi import --file examples/report.md --title Report --key import-1 --expected null
+
+# The historical direct Node path and command remain valid:
 node bin/sillage.js --help
-node bin/sillage.js document        # source preview; --full retrieves exact text
-node bin/sillage.js blocks --fields id,kind,ordinal
-node bin/sillage.js threads         # bounded list plus total and derived counts
-node bin/sillage.js thread <id> --full
-node bin/sillage.js import --file examples/report.md --title Report --key import-1 --expected null
+sillage --help
 ```
 
 Home identifies the executable, service/report/queue state and a few next commands.
 It never creates a database, starts a service, installs hooks, reads a report file,
-reserves work or launches inference. Start the service explicitly with `sillage serve`
-or the unchanged `npm start`. `sillage demo` explicitly consumes one demo request;
-`sillage attach` explicitly switches to the **continuous JSONL** bridge. For the full
-reply/citation contract, use `sillage agent-help` or the connection guide below.
+reserves work or launches inference. Start the service explicitly with `sillage-axi serve`
+or the unchanged `npm start`. `sillage-axi demo` explicitly consumes one demo request;
+`sillage-axi attach` explicitly switches to the **continuous JSONL** bridge. For the full
+reply/citation contract, use `sillage-axi agent-help` or the connection guide below.
+Every primary command also accepts the historical `sillage` executable alias.
 
 Finite CLI results (observations and mutations) and errors use **TOON** on stdout;
 version is a bare string.
@@ -88,11 +98,11 @@ For ambient discovery, explicitly install a **project-scoped**, availability-onl
 hook in a harness you have configured for local-only reasoning:
 
 ```sh
-node bin/sillage.js setup --app claude --local-only
-node bin/sillage.js setup --app codex --local-only
-node bin/sillage.js setup --app opencode --local-only
-# Remove only Sillage-managed entries for the selected app:
-node bin/sillage.js setup --app claude --local-only --remove
+sillage-axi setup --app claude --local-only
+sillage-axi setup --app codex --local-only
+sillage-axi setup --app opencode --local-only
+# Remove only Sillage AXI-managed entries for the selected app:
+sillage-axi setup --app claude --local-only --remove
 ```
 
 Choose your app; you do not need all three. Hooks target POSIX shell/Node hosts;
@@ -113,27 +123,28 @@ Removal leaves scoped connection configuration intact. Keep generated machine-lo
 hook paths out of shared commits. Multi-file installation is not transactional:
 permission/disk failures may require rerunning setup; individual writes are atomic.
 
-At session start the hook calls `sillage context`, a privacy-restricted home that
+At session start the hook calls `sillage-axi context`, a privacy-restricted home that
 reports only availability/configuration, **never titles, IDs, counts, worker names,
 report text, questions or citations**. Outside the exact selected directory it
 reveals no report state. Hooks are bounded, do not reserve, infer or fetch externally.
 No session-end transcript/file capture is installed: durable local question/answer
-history is Sillage's lifecycle memory. This is the deliberate local-only subset of
-AXI's ambient-context recommendation.
+history is Sillage AXI's lifecycle memory. This is the deliberate local-only subset of
+AXI's ambient-context recommendation. Existing hooks calling `sillage context` remain valid.
 
 The [installable skill](skills/sillage/SKILL.md) is the on-demand alternative; either
 hook or skill is sufficient for discovery. Copy only `skills/sillage/` into your
-harness's skill directory. It uses portable runtime guidance rather than links
-outside that directory; an existing local checkout is still required. Public
-`/sillage` and `$ARGUMENTS` remain; nonstandard argument hints live under `metadata`
-and may be ignored by a harness. Generate with `npm run skill:generate`; CI checks
-freshness against the same static discovery/safety text used by the CLI.
+harness's skill directory. Its established `/sillage` invocation and install path
+remain valid; it uses portable runtime guidance rather than links outside that
+directory, and an existing local checkout is still required. `$ARGUMENTS` remains;
+nonstandard argument hints live under `metadata` and may be ignored by a harness.
+Generate with `npm run skill:generate`; CI checks freshness against the same static
+discovery/safety text used by the CLI, so the skill has one source of instructions.
 
 ### Using a real local agent
 
-The header shows **Local agent · unavailable** until an already-running, fully local agent explicitly connects. Questions remain saved in the queue, with a visible connection path rather than a silent wait. Select the indicator or **Connect local agent** in a waiting bubble for setup. **No model is bundled or launched by Sillage.** Do not connect a cloud-backed assistant.
+The header shows **Local agent · unavailable** until an already-running, fully local agent explicitly connects. Questions remain saved in the queue, with a visible connection path rather than a silent wait. Select the indicator or **Connect local agent** in a waiting bubble for setup. **No model is bundled or launched by Sillage AXI.** Do not connect a cloud-backed assistant.
 
-Use the [Sillage agent skill](skills/sillage/SKILL.md) and [local-agent connection guide](docs/local-agent.md). An existing local agent can use the managed HTTP lifecycle directly, or attach to the explicit JSONL bridge:
+Use the [Sillage AXI agent skill](skills/sillage/SKILL.md) and [local-agent connection guide](docs/local-agent.md). An existing local agent can use the managed HTTP lifecycle directly, or attach to the explicit JSONL bridge:
 
 ```sh
 node src/local-agent.js
@@ -152,7 +163,7 @@ SILLAGE_DB=.data/demo.sqlite SILLAGE_PORT=3211 npm start
 SILLAGE_URL=http://127.0.0.1:3211 npm run fake-agent
 ```
 
-The default durable store is `.data/sillage.sqlite` relative to the working directory. Restart from the **same directory with the same database path**. **Run only one service per database.** Stop with Ctrl+C; restarting `npm start` restores the report, questions, reservations, replies, and unread state. Data is not encrypted: it has your OS account's privacy boundary. The service creates private data directories/files; `.data/` is gitignored. To back up, stop Sillage and copy its SQLite file (do not copy only the main file while WAL writes are active).
+The default durable store is `.data/sillage.sqlite` relative to the working directory. Restart from the **same directory with the same database path**. **Run only one service per database.** Stop with Ctrl+C; restarting `npm start` restores the report, questions, reservations, replies, and unread state. Data is not encrypted: it has your OS account's privacy boundary. The service creates private data directories/files; `.data/` is gitignored. To back up, stop Sillage AXI and copy its SQLite file (do not copy only the main file while WAL writes are active).
 
 ## Walkthrough
 
@@ -172,19 +183,19 @@ An ordinary browser file input is a **snapshot**, not a disk watcher. In a brows
 
 **Stop file updates** revokes this tab's observation (not a revision already in flight). Permission loss, oversized/invalid content, or another import pauses file updates visibly. A compare-and-import guard prevents overwriting a concurrent revision. Review the report and reconnect explicitly. Reloading/closing the tab forgets the capability; background tabs may be browser-throttled. Editors that replace or move the underlying file can invalidate the handle, requiring reconnection.
 
-If the browser lacks that explicit capability, reselect the edited file and **Import revision**, or have an independently authorized local workflow POST its Markdown through the existing relay. Other open readers still update automatically. Sillage does not pretend that polling the old file-input snapshot observes disk changes.
+If the browser lacks that explicit capability, reselect the edited file and **Import revision**, or have an independently authorized local workflow POST its Markdown through the existing relay. Other open readers still update automatically. Sillage AXI does not pretend that polling the old file-input snapshot observes disk changes.
 
 UTF-8 French Markdown is supported without translation or a second-report feature. A supplied French revision can be imported later; Delta-content translation and any Yuba changes are outside this repository.
 
 ## Visual direction
 
-**Material Darker Air** is the one implemented direction: anthracite/slate surfaces, restrained indigo, airy hierarchy and spacing, a wider canvas for code/tables, and prose capped at 76ch. Threads are a compact optional panel (stacked on narrower screens). The small locally bundled Sillage mark uses no remote asset or font. **Plum & Amber** remains a documented future alternative only, not a second theme or switch.
+**Material Darker Air** is the one implemented direction: anthracite/slate surfaces, restrained indigo, airy hierarchy and spacing, a wider canvas for code/tables, and prose capped at 76ch. Threads are a compact optional panel (stacked on narrower screens). The small locally bundled Sillage AXI mark uses no remote asset or font. **Plum & Amber** remains a documented future alternative only, not a second theme or switch.
 
 ### Standalone icon proposals
 
 Open [`proposals/icons.html`](proposals/icons.html) directly in a browser (a local `file://` URL, no server required). This separate Material Darker Air board contains **exactly ten inline-SVG proposals**, each with a name, rationale and small-size previews. Click a card or use Tab and arrow keys to highlight one; note its number and name for a later integration decision.
 
-The highlight is **temporary**: reload clears it. The board uses no browser storage, service requests, external assets or application settings. It is not linked from the reader UI or served by the Sillage app, and it changes neither the current logo nor the favicon. Choosing here does not integrate an icon; that is a separate task.
+The highlight is **temporary**: reload clears it. The board uses no browser storage, service requests, external assets or application settings. It is not linked from the reader UI or served by the Sillage AXI app, and it changes neither the current logo nor the favicon. Choosing here does not integrate an icon; that is a separate task.
 
 ## How anchors and revisions work
 
@@ -204,4 +215,4 @@ Changed, deleted, split, merged, or ambiguous blocks get fresh IDs. Unmatched th
 - **UI:** plain JavaScript/CSS, Material Darker Air palette; no build, WebSockets, streaming, shell execution, vector search, or provider SDK.
 - **Limits:** 1,000,000 source characters / 20,000 lines / 5,000 passages per import, 2 MB API payloads, 4,000-character questions, 2,000-character UI selections. The local prototype migrates schema v1 to v2 for the managed reservation marker and refuses unknown future schema versions; later migrations and resource isolation for very large/malicious documents are out of scope.
 
-See [acceptance evidence](docs/acceptance.md) for commands, observed results, and validation limitations.
+See [acceptance evidence](docs/acceptance.md) for commands, observed results, and validation limitations. The repository is [nicolascrop/sillage-axi](https://github.com/nicolascrop/sillage-axi).

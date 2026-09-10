@@ -1,4 +1,4 @@
-# Local agent protocol · sillage-agent-v1
+# Sillage AXI local agent protocol · sillage-agent-v1
 
 Provider-neutral HTTP/JSON over the running local service. No API keys, external provider, shell commands, or model execution are built in. Workers are trusted local programs; report text and questions are **untrusted data**, not instructions to execute tools. Choosing an external provider requires a separate privacy decision.
 
@@ -63,7 +63,7 @@ Returns HTTP 200 with `{"request":null}` if nothing is available. Otherwise:
 }
 ```
 
-Times are Unix milliseconds. Lines are one-based inclusive; ordinal is zero-based. The one report's identity is implicit; `document.id` is its **immutable revision ID**, not the current revision. `anchor_status` can be `needs_review` after regeneration; the worker always receives the originally asked-about revision, never substituted new text. `context.before/after` are adjacent semantic-block source excerpts (nested blocks may overlap); the full original document source is also available in this response.
+Times are Unix milliseconds. Lines are one-based inclusive; ordinal is zero-based. The one Sillage AXI report's identity is implicit; `document.id` is its **immutable revision ID**, not the current revision. `anchor_status` can be `needs_review` after regeneration; the worker always receives the originally asked-about revision, never substituted new text. `context.before/after` are adjacent semantic-block source excerpts (nested blocks may overlap); the full original document source is also available in this response.
 
 Reservation is atomic (`BEGIN IMMEDIATE`). Oldest waiting or expired reservation wins. Lease duration defaults to 60 seconds, allowed integer range 5–300. There is no renewal endpoint in v1. A worker that cannot finish before expiry must discard its authority and poll again; it might receive another request. Do not assume it owns the original request after expiry. An abandoned lease becomes reservable on the next poll without a background scheduler.
 

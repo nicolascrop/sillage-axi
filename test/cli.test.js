@@ -33,7 +33,7 @@ test('all entrypoints: help/version/unknown input are finite and leave a nonempt
   const app = await service(t);
   const doc = app.store.importReport({ title: 'Private', source: '# Heading\n\nExact context.' });
   const thread = app.store.question(questionInput(doc));
-  for (const file of ['bin/sillage.js', 'src/server.js', 'src/fake-agent.js', 'src/local-agent.js']) {
+  for (const file of ['bin/sillage.js', 'bin/sillage-axi.js', 'src/server.js', 'src/fake-agent.js', 'src/local-agent.js']) {
     for (const args of [['--help'], ['-h'], ['--version'], ['-v'], ['-V'], ['--bogus'], ['invented-command'], ['--bogus', '--help'], ['invented-command', '--help']]) {
       const db = join(app.scope, `${file.replaceAll('/', '-')}.sqlite`);
       const result = await run(args, { entry: join(root, file), cwd: app.scope, env: { SILLAGE_URL: app.url, SILLAGE_DB: db, SILLAGE_PORT: 'invalid' } });
@@ -80,7 +80,7 @@ test('empty inspection hints identify the next executable local command', async 
   const doc = app.store.importReport({ title: 'Report', source: '# Heading\n\nExact context.' });
   const reportThreads = decode((await app.cli(['threads'])).stdout);
   assert.equal(reportThreads.revision_id, doc.id);
-  assert.ok(reportThreads.help[0].includes(`sillage blocks --revision ${doc.id}`));
+  assert.ok(reportThreads.help[0].includes(`sillage-axi blocks --revision ${doc.id}`));
 
   const historicalBlocks = decode((await app.cli(['blocks', '--revision', String(historicalEmptyRevision)])).stdout);
   assert.equal(historicalBlocks.revision_id, historicalEmptyRevision);
@@ -215,7 +215,7 @@ test('fast version stays near the Node floor and does not evaluate business depe
     return times.sort((a, b) => a - b)[2];
   }
   const floor = median(['-e', 'console.log(1)']);
-  for (const entry of ['bin/sillage.js', 'src/server.js', 'src/fake-agent.js', 'src/local-agent.js']) {
+  for (const entry of ['bin/sillage.js', 'bin/sillage-axi.js', 'src/server.js', 'src/fake-agent.js', 'src/local-agent.js']) {
     assert.ok(median([entry, '--version']) < floor * 6, `${entry} exceeds relative Node floor`);
     const probe = spawnSync(process.execPath, [entry, '--version'], { encoding: 'utf8', env: { ...process.env, NODE_DEBUG: 'esm' } });
     assert.doesNotMatch(probe.stderr, /store\.js|render\.js|cli\.js|node:sqlite|@toon-format/);
@@ -276,8 +276,11 @@ test('offline local npm installation exposes a real executable outside the check
   const directory = dirname(temporaryDb(t));
   await exec('npm', ['install', '--prefix', directory, '--ignore-scripts', '--offline', '--no-audit', '--no-fund', '--cache', join(directory, 'cache'), root], { timeout: 15_000, env: { ...process.env, HOME: directory } });
   const installed = join(directory, 'node_modules/.bin/sillage');
-  assert.equal((await exec(installed, ['--version'], { cwd: directory })).stdout, '0.1.0\n');
-  const result = await exec(installed, ['--url', 'http://127.0.0.1:1'], { cwd: directory });
-  assert.equal(decode(result.stdout).service, 'unavailable');
+  const installedPrimary = join(directory, 'node_modules/.bin/sillage-axi');
+  for (const command of [installed, installedPrimary]) {
+    assert.equal((await exec(command, ['--version'], { cwd: directory })).stdout, '0.1.0\n');
+    const result = await exec(command, ['--url', 'http://127.0.0.1:1'], { cwd: directory });
+    assert.equal(decode(result.stdout).service, 'unavailable');
+  }
   assert.equal(existsSync(join(directory, '.data')), false);
 });

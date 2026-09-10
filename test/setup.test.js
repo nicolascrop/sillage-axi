@@ -11,6 +11,7 @@ import { createApp } from '../src/server.js';
 import { temporaryDb, questionInput } from '../test-support/helpers.js';
 const exec = promisify(execFile);
 const executable = resolve('bin/sillage.js');
+const primaryExecutable = resolve('bin/sillage-axi.js');
 const options = scope => ({ scope, origin: 'http://127.0.0.1:1', executable });
 
 test('all integrations: explicit scoped install, idempotence, third-party preservation, removal and path repair', async t => {
@@ -102,4 +103,7 @@ test('PATH uses the verified executable only; collisions fall back to an absolut
   const verified = join(scope, 'verified'); mkdirSync(verified); symlinkSync(executable, join(verified, 'sillage'));
   await exec(process.execPath, args, { cwd: scope, env: { ...process.env, PATH: `${verified}:${dirname(process.execPath)}`, HOME: scope } });
   assert.ok(command().startsWith("'sillage' 'context'"));
+  const primary = join(scope, 'primary'); mkdirSync(primary); symlinkSync(primaryExecutable, join(primary, 'sillage-axi'));
+  await exec(process.execPath, [primaryExecutable, 'setup', '--app', 'claude', '--local-only', '--url', 'http://127.0.0.1:1'], { cwd: scope, env: { ...process.env, PATH: `${primary}:${dirname(process.execPath)}`, HOME: scope } });
+  assert.ok(command().startsWith("'sillage-axi' 'context'"));
 });

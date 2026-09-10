@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sillage · local report reader</title>
+  <title>Sillage AXI · local report reader</title>
   <link rel="icon" href="/sillage.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><img src="/sillage.svg" width="28" height="28" alt=""><strong>Sillage</strong></div>
+    <div class="brand"><img src="/sillage.svg" width="28" height="28" alt=""><strong>Sillage AXI</strong></div>
     <div class="toolbar">
       <button id="agent-toggle" type="button" aria-expanded="false" aria-controls="agent-panel"><span id="agent-state">Local agent · checking…</span></button>
       <button id="import-toggle" type="button" aria-expanded="true" aria-controls="import-panel">Import / new revision</button>
@@ -22,11 +22,11 @@
     <h2 id="agent-heading">Connect your local agent</h2>
     <p id="agent-detail" role="status">No local agent is connected. Questions stay saved in the queue, but will not answer themselves.</p>
     <ol>
-      <li>Use an already-running, local-only agent with the Sillage skill (<code>skills/sillage/SKILL.md</code>). Ask it to connect to this reader’s local relay and answer queued questions. Do not use a cloud-backed agent.</li>
-      <li>For a stdio-capable local agent, start <code>node src/local-agent.js</code> from the Sillage checkout and attach its stdin/stdout, keeping stderr separate. Use Node directly: npm's normal script banner can pollute the JSONL stream. For a nondefault loopback port, use e.g. <code>SILLAGE_URL=http://127.0.0.1:3211 node src/local-agent.js</code> with the reader's port. Send <code>{"type":"ready","worker":"my-local-agent"}</code> only when ready to answer. The bridge prints requests as JSON lines; the agent must return answers. See <code>docs/local-agent.md</code>.</li>
+      <li>Use an already-running, local-only agent with the Sillage AXI skill (<code>skills/sillage/SKILL.md</code>). Ask it to connect to this reader’s local relay and answer queued questions. Do not use a cloud-backed agent.</li>
+      <li>For a stdio-capable local agent, start <code>node src/local-agent.js</code> from the Sillage AXI checkout and attach its stdin/stdout, keeping stderr separate. Use Node directly: npm's normal script banner can pollute the JSONL stream. For a nondefault loopback port, use e.g. <code>SILLAGE_URL=http://127.0.0.1:3211 node src/local-agent.js</code> with the reader's port. Send <code>{"type":"ready","worker":"my-local-agent"}</code> only when ready to answer. The bridge prints requests as JSON lines; the agent must return answers. See <code>docs/local-agent.md</code>.</li>
       <li>The indicator becomes active only after connection; heartbeat loss makes it unavailable. Stop via the agent’s disconnect action or end the bridge’s input. In-flight work gets an explicit failure, never a fabricated answer.</li>
     </ol>
-    <p class="muted">Sillage cannot start a model or execute commands. This bridge is not AI. The separate <code>npm run fake-agent</code> command is a deterministic demo, not the active-agent path. Nothing here authorizes project edits, deletion, publication or merges.</p>
+    <p class="muted">Sillage AXI cannot start a model or execute commands. This bridge is not AI. The separate <code>npm run fake-agent</code> command is a deterministic Sillage AXI demo, not the active-agent path. Nothing here authorizes project edits, deletion, publication or merges.</p>
   </section>
   <section id="import-panel" class="setup-panel" aria-label="Import a Markdown report">
     <form id="import-form">

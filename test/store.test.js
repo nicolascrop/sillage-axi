@@ -8,7 +8,7 @@ test('unknown future database schema is refused rather than overwritten', t => {
   const path = temporaryDb(t);
   const db = new DatabaseSync(path);
   db.exec('PRAGMA user_version=3');
-  assert.throws(() => new Store(path), /Unsupported Sillage database schema 3/);
+  assert.throws(() => new Store(path), /Unsupported Sillage AXI database schema 3/);
   assert.equal(db.prepare('PRAGMA user_version').get().user_version, 3);
   db.close();
 });

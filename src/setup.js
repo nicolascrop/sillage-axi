@@ -1,14 +1,17 @@
 import { existsSync, readFileSync, realpathSync, lstatSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
-import { resolve, join, dirname, delimiter, relative } from 'node:path';
+import { resolve, join, dirname, delimiter, relative, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 const marker = 'sillage-managed-context-v1';
 const quote = value => `'${value.replaceAll("'", "'\\''")}'`;
 function portable(executable) {
+  const names = basename(executable) === 'sillage.js' ? ['sillage', 'sillage-axi'] : ['sillage-axi', 'sillage'];
   for (const directory of (process.env.PATH || '').split(delimiter).filter(Boolean)) {
-    try {
-      if (realpathSync(join(directory, 'sillage')) === realpathSync(executable)) return { file: 'sillage', args: [] };
-    } catch { /* Not this executable; use the pinned absolute fallback. */ }
+    for (const name of names) {
+      try {
+        if (realpathSync(join(directory, name)) === realpathSync(executable)) return { file: name, args: [] };
+      } catch { /* Not this executable; use the pinned absolute fallback. */ }
+    }
   }
   return { file: process.execPath, args: [executable] };
 }

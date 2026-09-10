@@ -1,9 +1,17 @@
 {
-  "name": "sillage",
+  "name": "sillage-axi",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "A local-only Markdown report reader with durable passage conversations",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nicolascrop/sillage-axi.git"
+  },
+  "homepage": "https://github.com/nicolascrop/sillage-axi#readme",
+  "bugs": {
+    "url": "https://github.com/nicolascrop/sillage-axi/issues"
+  },
   "engines": {
     "node": ">=24.0.0"
   },
@@ -25,6 +33,7 @@
     "jsdom": "26.1.0"
   },
   "bin": {
+    "sillage-axi": "bin/sillage-axi.js",
     "sillage": "bin/sillage.js"
   }
 }
