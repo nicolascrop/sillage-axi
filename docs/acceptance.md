@@ -117,3 +117,20 @@ git diff --check
 - The four new documentation-contract tests failed on the old instructions, then passed after all public attachment paths switched to `node src/local-agent.js`. README, connection-guide and UI examples include `SILLAGE_URL=http://127.0.0.1:3211 node src/local-agent.js` for a nondefault loopback port. The npm script is retained only as a human-invocation convenience; its normal banner-producing form is not advertised for raw JSONL attachment.
 - The UI test checks both displayed command forms. The actual direct Node subprocess test uses an ephemeral loopback port via `SILLAGE_URL`, parses every stdout line as JSON, and now checks the complete readiness/connect/request/save/stop sequence through stdio close. Fixture replies still validate transport and original citations, not model inference. No runtime protocol or local-only boundary changed.
 - A focused Chrome run was subsequently completed for this command/documentation follow-up through the isolated `chrome-devtools-axi` session: the updated connection panel was inspected at 1440px and 390px, with the direct Node command, stderr separation, npm-banner warning, nondefault loopback example and local-only cautions visible; both viewports reported `clientWidth === scrollWidth`. This extends visual evidence only to the updated connection panel and does not claim model inference or broader browser coverage.
+
+## Standalone icon proposal board
+
+Validated in the isolated `fm/sillage-icon-gallery` worktree with Node.js **v24.18.1** and Chrome **148**, using the isolated `chrome-devtools-axi` session `sillage-icon-gallery`. This evidence concerns only [`proposals/icons.html`](../proposals/icons.html), not the reader or its earlier browser-coverage limitations.
+
+```sh
+npm test
+npm run check
+git diff --check
+# Open proposals/icons.html directly as a file:// URL in Chrome; no server needed.
+```
+
+- **44 tests passed, 0 failed.** Four deterministic jsdom tests check exactly ten distinct named/labeled SVG candidates, matching 16/24/32 px geometry, all ten exclusive selections, status/preview/clear behavior, reload and restored-page reset, and absence of storage, requests, external references or reader integration.
+- Chrome screenshots were inspected at **1440×1080** (five columns, two rows) and **390×844** (one column, all ten cards). No horizontal overflow; an additional **320 px** width check also stayed within the viewport. Small-size artwork and selected preview render directly from inline geometry.
+- Native Tab/arrow navigation selected Margin note with visible focus and exclusive highlighting. Pointer selection selected Mooring; Clear choice removed the highlight/preview and returned focus to the first radio. An actual browser reload (`PerformanceNavigationTiming.type === 'reload'`) reset selection to zero. The accessibility snapshot exposes ten named radios with rationale descriptions and the live selection status.
+- The browser pass caught SVG-specific issues not modeled by jsdom: assigning `SVGElement.hidden` did not reveal the selected preview, and same-file `<use>` references produced a file-origin error. The board now toggles the hidden attribute explicitly and uses inline geometry, with matching regression assertions. Final Chrome console: **no messages**. Network panel: **only the local HTML file**, no service or external asset requests.
+- Local evidence remains gitignored under `.data/icon-gallery/`: `wide.png`, `wide-selected.png`, `narrow-full.png`, `narrow-selected.png`, `narrow-card.png`, plus DOM, console, network and command logs. No production logo, favicon, route, reader link, application setting or persistence behavior was changed. Other browsers, a screen reader and forced-colors mode were not manually exercised.

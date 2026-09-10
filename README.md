@@ -77,6 +77,12 @@ UTF-8 French Markdown is supported without translation or a second-report featur
 
 **Material Darker Air** is the one implemented direction: anthracite/slate surfaces, restrained indigo, airy hierarchy and spacing, a wider canvas for code/tables, and prose capped at 76ch. Threads are a compact optional panel (stacked on narrower screens). The small locally bundled Sillage mark uses no remote asset or font. **Plum & Amber** remains a documented future alternative only, not a second theme or switch.
 
+### Standalone icon proposals
+
+Open [`proposals/icons.html`](proposals/icons.html) directly in a browser (a local `file://` URL, no server required). This separate Material Darker Air board contains **exactly ten inline-SVG proposals**, each with a name, rationale and small-size previews. Click a card or use Tab and arrow keys to highlight one; note its number and name for a later integration decision.
+
+The highlight is **temporary**: reload clears it. The board uses no browser storage, service requests, external assets or application settings. It is not linked from the reader UI or served by the Sillage app, and it changes neither the current logo nor the favicon. Choosing here does not integrate an icon; that is a separate task.
+
 ## How anchors and revisions work
 
 `src/render.js` uses Markdown-it's semantic tokens and source line maps, **not DOM selectors**, to produce app-owned UUIDs. DOM IDs (`b-<uuid>`) are navigation projections of those stored identities. Source text, original revision, exact quote, neighboring context, and block coordinates are saved with every question. Short rendered selections are checked against the passage's visible text/source (whitespace-normalized for validation only); the supplied quote is stored verbatim.
