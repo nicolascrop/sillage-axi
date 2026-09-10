@@ -19,7 +19,7 @@ export async function legacyGate(meta, command) {
   if (args.length === 1 && ['--version', '-v', '-V'].includes(args[0])) {
     console.log(version); return true;
   }
-  if (args.includes('--help') || args.includes('-h')) {
+  if (args.length === 1 && ['--help', '-h'].includes(args[0])) {
     const { helpFor } = await import('./guidance.js');
     const script = `node src/${command === 'serve' ? 'server' : command === 'demo' ? 'fake-agent' : 'local-agent'}.js`;
     await output({ ...helpFor(command), usage: script, flags: ['--help', '-h', '--version', '-v', '-V'],

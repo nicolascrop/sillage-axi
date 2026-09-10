@@ -34,10 +34,11 @@ test('all entrypoints: help/version/unknown input are finite and leave a nonempt
   const doc = app.store.importReport({ title: 'Private', source: '# Heading\n\nExact context.' });
   const thread = app.store.question(questionInput(doc));
   for (const file of ['bin/sillage.js', 'src/server.js', 'src/fake-agent.js', 'src/local-agent.js']) {
-    for (const args of [['--help'], ['-h'], ['--version'], ['-v'], ['-V'], ['--bogus'], ['invented-command']]) {
+    for (const args of [['--help'], ['-h'], ['--version'], ['-v'], ['-V'], ['--bogus'], ['invented-command'], ['--bogus', '--help'], ['invented-command', '--help']]) {
       const db = join(app.scope, `${file.replaceAll('/', '-')}.sqlite`);
       const result = await run(args, { entry: join(root, file), cwd: app.scope, env: { SILLAGE_URL: app.url, SILLAGE_DB: db, SILLAGE_PORT: 'invalid' } });
-      assert.equal(result.status, ['--bogus', 'invented-command'].includes(args[0]) ? 2 : 0, `${file} ${args}: ${result.stderr}`);
+      const invalid = args.some(arg => ['--bogus', 'invented-command'].includes(arg));
+      assert.equal(result.status, invalid ? 2 : 0, `${file} ${args}: ${result.stderr}`);
       assert.equal(existsSync(db), false);
       assert.equal(app.store.thread(thread.id).request_status, 'waiting');
       assert.equal(app.store.thread(thread.id).attempts, 0);
@@ -57,7 +58,7 @@ test('every command has help before config/network; scoped unknown flags and mis
       if (flag === '--help') assert.ok(decode(result.stdout).examples.length >= 2);
     }
   }
-  for (const args of [['blocks', '--stat', 'closed'], ['thread'], ['threads', 'extra'], ['blocks', '--limit', '0'], ['blocks', '--limit', '2.5'], ['blocks', '--offset', '-1'], ['blocks', '--fields', 'source'], ['blocks', '--fields', 'id,id'], ['document', '--full=false'], ['import', '--file', 'missing'], ['question', '--revision', 'x'], ['setup', '--app', 'claude']]) {
+  for (const args of [['blocks', '--stat', 'closed'], ['thread'], ['threads', 'extra'], ['blocks', '--limit', '0'], ['blocks', '--limit', '2.5'], ['blocks', '--offset', '-1'], ['blocks', '--fields', 'source'], ['blocks', '--fields', 'id,id'], ['document', '--full=false'], ['import', '--file', 'missing'], ['question', '--revision', 'x'], ['setup', '--app', 'claude'], ['document', '--bogus', '--help'], ['invented-command', '--help']]) {
     const result = await run(args, { cwd: scope, env: { SILLAGE_URL: 'https://example.invalid' } });
     assert.equal(result.status, 2, args.join(' '));
     assert.equal(decode(result.stdout).error.code, 'usage');
@@ -65,6 +66,25 @@ test('every command has help before config/network; scoped unknown flags and mis
   }
   assert.equal(existsSync(join(scope, '.sillage')), false);
   assert.equal(existsSync(join(scope, '.data')), false);
+});
+
+test('empty inspection hints identify the next executable local command', async t => {
+  const app = await service(t);
+  const noReportThreads = decode((await app.cli(['threads'])).stdout);
+  assert.equal(noReportThreads.revision_id, null);
+  assert.ok(noReportThreads.help[0].includes('--expected null'));
+
+  const doc = app.store.importReport({ title: 'Report', source: '# Heading\n\nExact context.' });
+  const reportThreads = decode((await app.cli(['threads'])).stdout);
+  assert.equal(reportThreads.revision_id, doc.id);
+  assert.ok(reportThreads.help[0].includes(`sillage blocks --revision ${doc.id}`));
+
+  const emptyRevision = Number(app.store.db.prepare(
+    'INSERT INTO revisions(title,source,html,toc,created_at) VALUES(?,?,?,?,?)'
+  ).run('Empty', '<!-- comment -->', '', '[]', Date.now()).lastInsertRowid);
+  const emptyBlocks = decode((await app.cli(['blocks'])).stdout);
+  assert.equal(emptyBlocks.revision_id, emptyRevision);
+  assert.ok(emptyBlocks.help[0].includes(`--expected ${emptyRevision}`));
 });
 
 test('home is scoped, content-first and read-only; offline probes never create data', async t => {

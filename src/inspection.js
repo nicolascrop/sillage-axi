@@ -43,7 +43,7 @@ export function inspect(store, relay, { view, id, revision, fields, limit = 100,
       CASE WHEN EXISTS(SELECT 1 FROM blocks b WHERE b.revision_id=? AND b.id=t.block_id) THEN 'matched' ELSE 'needs_review' END AS anchor_status
       FROM threads t JOIN requests r ON r.thread_id=t.id ORDER BY t.created_at DESC,t.rowid DESC LIMIT ? OFFSET ?`).all(current, limit, offset);
     const totals = counts();
-    return { total: totals.total, shown: rows.length, offset, counts: totals,
+    return { revision_id: current, total: totals.total, shown: rows.length, offset, counts: totals,
       threads: project(rows, fields || listFields.threads.slice(0, 4)), ...(totals.total ? {} : { empty: '0 threads in this local report; no questions have been saved.' }) };
   }
   if (view === 'thread') return { thread: previewTree(store.thread(id), full) };
