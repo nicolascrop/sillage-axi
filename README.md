@@ -33,8 +33,12 @@ The header shows **Local agent · unavailable** until an already-running, fully 
 Use the [Sillage agent skill](skills/sillage/SKILL.md) and [local-agent connection guide](docs/local-agent.md). An existing local agent can use the managed HTTP lifecycle directly, or attach to the explicit JSONL bridge:
 
 ```sh
-npm run local-agent
+node src/local-agent.js
+# Or, for a nondefault loopback port:
+SILLAGE_URL=http://127.0.0.1:3211 node src/local-agent.js
 ```
+
+Use Node directly for machine attachment: npm's normal script banner can pollute the JSONL stdout stream. Attach stdin/stdout separately from stderr.
 
 The bridge is **not AI**: it stays unavailable until the attached reasoner declares readiness, then relays queued requests and stores that reasoner's actual cited replies. It runs continuously, maintains heartbeats and supports clean disconnect via EOF or a stop message. Lost presence or a 120-second answering deadline produces an explicit terminal failure, not a fabricated answer. Unclaimed questions stay queued. The separate `fake-agent` command never advertises active-agent presence and cannot take work while a real managed worker is connected. See the [v1 local agent protocol](docs/agent-protocol.md) for provenance, citations and idempotency.
 
@@ -72,6 +76,12 @@ UTF-8 French Markdown is supported without translation or a second-report featur
 ## Visual direction
 
 **Material Darker Air** is the one implemented direction: anthracite/slate surfaces, restrained indigo, airy hierarchy and spacing, a wider canvas for code/tables, and prose capped at 76ch. Threads are a compact optional panel (stacked on narrower screens). The small locally bundled Sillage mark uses no remote asset or font. **Plum & Amber** remains a documented future alternative only, not a second theme or switch.
+
+### Standalone icon proposals
+
+Open [`proposals/icons.html`](proposals/icons.html) directly in a browser (a local `file://` URL, no server required). This separate Material Darker Air board contains **exactly ten inline-SVG proposals**, each with a name, rationale and small-size previews. Click a card or use Tab and arrow keys to highlight one; note its number and name for a later integration decision.
+
+The highlight is **temporary**: reload clears it. The board uses no browser storage, service requests, external assets or application settings. It is not linked from the reader UI or served by the Sillage app, and it changes neither the current logo nor the favicon. Choosing here does not integrate an icon; that is a separate task.
 
 ## How anchors and revisions work
 

@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sillage · icon proposals</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <style>
+/* Standalone Material Darker Air study; no application styles or assets required. */
+:root { color-scheme: dark; font: 16px/1.8 system-ui, sans-serif; --bg: #24272d; --panel: #2b2f37; --border: #424854; --muted: #b2b9c8; --accent: #a5aff5; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: #e7e9ef; }
+button { font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--border); border-radius: 7px; padding: .5rem .8rem; cursor: pointer; }
+button:hover { border-color: var(--accent); background: #343a46; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+h1, h2 { line-height: 1.3; letter-spacing: -.02em; }
+.muted { color: var(--muted); font-size: .85rem; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: #292d34; border-bottom: 1px solid var(--border); padding: 1rem 2rem; }
+.brand { display: flex; align-items: center; gap: .75rem; }
+.brand strong { font-size: 1.2rem; letter-spacing: .02em; }
+.eyebrow { color: var(--accent); font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; }
+[hidden] { display: none !important; }
+.gallery-tag { color: var(--muted); border-left: 1px solid var(--border); padding-left: .75rem; font-size: .8rem; }
+.gallery-main { max-width: 1480px; margin: auto; padding: 2.5rem 3rem 3rem; }
+.gallery-intro { max-width: 760px; margin-bottom: 2rem; }
+.gallery-intro h1 { margin: .4rem 0 1rem; font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 600; }
+.gallery-intro > p { margin: .7rem 0; }
+.gallery-intro > p:not(.eyebrow):not(.muted) { color: #c9cfdb; max-width: 62ch; }
+.choice-summary { display: flex; align-items: center; gap: 1.25rem; padding: 1.2rem 1.5rem; border: 1px solid #6873a5; border-radius: 12px; background: #2d3240; margin-bottom: 2rem; }
+.choice-copy { flex: 1; min-width: 0; }
+.choice-summary h2 { margin: 0; color: var(--accent); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
+.choice-summary p { margin: .3rem 0 0; }
+#selection-status { font-weight: 600; }
+#chosen-preview { flex-shrink: 0; }
+#clear-choice { font-size: .8rem; min-height: 44px; }
+.candidate-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.candidate-fieldset legend { padding: 0; font-size: 1.1rem; font-weight: 600; }
+#gallery-help { margin: .25rem 0 1.25rem; }
+.candidate-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 1rem; }
+.candidate { display: flex; flex-direction: column; position: relative; margin: 0; padding: 1.1rem; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); cursor: pointer; min-width: 0; }
+.candidate:hover { border-color: #7c87b2; background: #303540; }
+.candidate:has(input:checked) { border-color: var(--accent); background: #33394b; box-shadow: inset 0 0 0 1px var(--accent); }
+.candidate:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 4px; }
+.candidate input { position: absolute; right: 1rem; top: 1.15rem; width: 18px; height: 18px; padding: 0; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.candidate-top { display: flex; justify-content: space-between; align-items: center; padding-right: 1.75rem; font-size: .7rem; color: var(--muted); letter-spacing: .05em; }
+.candidate-number { font-variant-numeric: tabular-nums; }
+.candidate:has(input:checked) .candidate-state { color: #d8ddff; font-weight: 700; }
+.candidate-stage { display: grid; place-items: center; min-height: 128px; }
+.candidate-art { fill: none; stroke: #dde2ef; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.icon-accent { stroke: var(--accent); }
+.icon-solid { fill: var(--accent); stroke: none; }
+.icon-fold { stroke: #454e73; stroke-width: 2; }
+.candidate-name { font-size: 1rem; line-height: 1.4; font-weight: 600; margin-bottom: .6rem; }
+.candidate-rationale { color: var(--muted); font-size: .82rem; line-height: 1.65; flex: 1; }
+.candidate-sizes { display: flex; align-items: center; gap: .8rem; border-top: 1px solid var(--border); padding-top: .9rem; margin-top: 1.25rem; }
+.candidate-sizes svg { flex-shrink: 0; }
+.candidate-sizes > span { margin-left: auto; font-size: .6rem; color: var(--muted); white-space: nowrap; }
+.gallery-footer { color: var(--muted); font-size: .8rem; margin-top: 2rem; max-width: 80ch; }
+.gallery-noscript { color: #e8c797; }
+@media (max-width: 700px) {
+  .topbar { padding: 1rem; flex-wrap: wrap; }
+  .gallery-main { padding: 1.5rem 1rem 2rem; }
+  .gallery-intro { margin-bottom: 1.5rem; }
+  .choice-summary { flex-wrap: wrap; padding: 1rem; gap: 1rem; }
+  .choice-summary .choice-copy { flex-basis: 65%; }
+  .candidate-stage { min-height: 112px; }
+}
+@media (forced-colors: active) {
+  .candidate:has(input:checked) { border: 3px solid Highlight; }
+  .candidate-art, .icon-accent, .icon-fold { stroke: CanvasText; }
+  .icon-solid { fill: CanvasText; }
+}
+  </style>
+</head>
+<body class="icon-gallery">
+  <header class="topbar">
+    <div class="brand"><strong>Sillage</strong><span class="gallery-tag">Icon study</span></div>
+    <span class="muted">10 proposals · local only</span>
+  </header>
+  <main class="gallery-main">
+    <header class="gallery-intro">
+      <p class="eyebrow">Local identity · Material Darker Air</p>
+      <h1>Ten ways to leave a trace.</h1>
+      <p>A page, a passage, a conversation that stays. Compare ten marks for Sillage, then highlight your favorite for a later decision.</p>
+      <p class="muted">A standalone visual proposal board. No external assets, telemetry or accounts. The current logo and favicon are unchanged.</p>
+    </header>
+    <section class="choice-summary" aria-labelledby="choice-heading">
+      <svg id="chosen-preview" class="candidate-art" viewBox="0 0 48 48" width="48" height="48" aria-hidden="true" hidden></svg>
+      <div class="choice-copy">
+        <h2 id="choice-heading">Your pick for later</h2>
+        <p id="selection-status" role="status" aria-live="polite" aria-atomic="true">No icon selected. Choose a proposal below.</p>
+        <p class="muted">Temporary highlight only. Note the number and name for a later, separate integration. Reloading clears your pick.</p>
+      </div>
+      <button id="clear-choice" type="button" disabled>Clear choice</button>
+    </section>
+    <noscript><p class="gallery-noscript">You can compare all ten icons here. Enable JavaScript to temporarily highlight a favorite. Nothing is saved.</p></noscript>
+    <fieldset class="candidate-fieldset" aria-describedby="gallery-help">
+      <legend>Compare the ten proposals</legend>
+      <p id="gallery-help" class="muted">Select a card, or use Tab and the arrow keys. Each mark is also shown at 16, 24 and 32 px.</p>
+      <!-- Small previews repeat inline geometry to work without JS or file:// <use> requests.
+           test/icon-proposals.test.js keeps each preview identical to its main mark. -->
+      <div class="candidate-grid">
+        <label class="candidate" for="choice-wake">
+          <span class="candidate-top"><span class="candidate-number">01</span><span class="candidate-state" aria-hidden="true">Select</span></span>
+          <input id="choice-wake" type="radio" name="icon-choice" value="wake" aria-labelledby="name-wake" aria-describedby="reason-wake" disabled>
+          <span class="candidate-stage">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="80" height="80" role="img" aria-label="Three flowing, parallel trails">
+              <g id="mark-wake">
+                <path d="M9 13c15-9 15 13 30 4M9 24c15-9 15 13 30 4M9 35c15-9 15 13 30 4"/>
+              </g>
+            </svg>
+          </span>
+          <span id="name-wake" class="candidate-name">01 · Wake</span>
+          <span id="reason-wake" class="candidate-rationale">Three quiet trails: reading moves forward, while its conversations leave a trace.</span>
+          <span class="candidate-sizes" aria-hidden="true">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="16" height="16"><g>
+                <path d="M9 13c15-9 15 13 30 4M9 24c15-9 15 13 30 4M9 35c15-9 15 13 30 4"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="24" height="24"><g>
+                <path d="M9 13c15-9 15 13 30 4M9 24c15-9 15 13 30 4M9 35c15-9 15 13 30 4"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="32" height="32"><g>
+                <path d="M9 13c15-9 15 13 30 4M9 24c15-9 15 13 30 4M9 35c15-9 15 13 30 4"/>
+              </g></svg>
+            <span>16 / 24 / 32</span>
+          </span>
+        </label>
+        <label class="candidate" for="choice-margin">
+          <span class="candidate-top"><span class="candidate-number">02</span><span class="candidate-state" aria-hidden="true">Select</span></span>
+          <input id="choice-margin" type="radio" name="icon-choice" value="margin" aria-labelledby="name-margin" aria-describedby="reason-margin" disabled>
+          <span class="candidate-stage">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="80" height="80" role="img" aria-label="A page with a highlighted margin note">
+              <g id="mark-margin">
+                <path d="M27 7H11v34h26V29M17 15h6M17 22h6M17 29h9M17 35h9"/>
+                <path class="icon-accent" d="M30 10h11v12h-6l-5 5V10Z"/>
+              </g>
+            </svg>
+          </span>
+          <span id="name-margin" class="candidate-name">02 · Margin note</span>
+          <span id="reason-margin" class="candidate-rationale">A note held beside the page. The discussion stays close to its source.</span>
+          <span class="candidate-sizes" aria-hidden="true">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="16" height="16"><g>
+                <path d="M27 7H11v34h26V29M17 15h6M17 22h6M17 29h9M17 35h9"/>
+                <path class="icon-accent" d="M30 10h11v12h-6l-5 5V10Z"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="24" height="24"><g>
+                <path d="M27 7H11v34h26V29M17 15h6M17 22h6M17 29h9M17 35h9"/>
+                <path class="icon-accent" d="M30 10h11v12h-6l-5 5V10Z"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="32" height="32"><g>
+                <path d="M27 7H11v34h26V29M17 15h6M17 22h6M17 29h9M17 35h9"/>
+                <path class="icon-accent" d="M30 10h11v12h-6l-5 5V10Z"/>
+              </g></svg>
+            <span>16 / 24 / 32</span>
+          </span>
+        </label>
+        <label class="candidate" for="choice-thread">
+          <span class="candidate-top"><span class="candidate-number">03</span><span class="candidate-state" aria-hidden="true">Select</span></span>
+          <input id="choice-thread" type="radio" name="icon-choice" value="thread" aria-labelledby="name-thread" aria-describedby="reason-thread" disabled>
+          <span class="candidate-stage">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="80" height="80" role="img" aria-label="Two interlocking rounded links">
+              <g id="mark-thread">
+                <rect x="7" y="8" width="22" height="19" rx="8"/>
+                <rect class="icon-accent" x="19" y="21" width="22" height="19" rx="8"/>
+                <path d="m20 29 8-10"/>
+              </g>
+            </svg>
+          </span>
+          <span id="name-thread" class="candidate-name">03 · Common thread</span>
+          <span id="reason-thread" class="candidate-rationale">Two linked loops turn a passage and its conversation into one durable connection.</span>
+          <span class="candidate-sizes" aria-hidden="true">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="16" height="16"><g>
+                <rect x="7" y="8" width="22" height="19" rx="8"/>
+                <rect class="icon-accent" x="19" y="21" width="22" height="19" rx="8"/>
+                <path d="m20 29 8-10"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="24" height="24"><g>
+                <rect x="7" y="8" width="22" height="19" rx="8"/>
+                <rect class="icon-accent" x="19" y="21" width="22" height="19" rx="8"/>
+                <path d="m20 29 8-10"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="32" height="32"><g>
+                <rect x="7" y="8" width="22" height="19" rx="8"/>
+                <rect class="icon-accent" x="19" y="21" width="22" height="19" rx="8"/>
+                <path d="m20 29 8-10"/>
+              </g></svg>
+            <span>16 / 24 / 32</span>
+          </span>
+        </label>
+        <label class="candidate" for="choice-folio">
+          <span class="candidate-top"><span class="candidate-number">04</span><span class="candidate-state" aria-hidden="true">Select</span></span>
+          <input id="choice-folio" type="radio" name="icon-choice" value="folio" aria-labelledby="name-folio" aria-describedby="reason-folio" disabled>
+          <span class="candidate-stage">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="80" height="80" role="img" aria-label="An open book with two facing pages">
+              <g id="mark-folio">
+                <path d="M24 13C18 8 12 8 5 10v27c7-2 13-2 19 3 6-5 12-5 19-3V10c-7-2-13-2-19 3Zm0 0v27"/>
+                <path class="icon-accent" d="m11 17 7 1m-7 6 7 1m12-7 7-1m-7 8 7-1"/>
+              </g>
+            </svg>
+          </span>
+          <span id="name-folio" class="candidate-name">04 · Open folio</span>
+          <span id="reason-folio" class="candidate-rationale">An open book, with a shared spine: a reader first, with room for a second perspective.</span>
+          <span class="candidate-sizes" aria-hidden="true">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="16" height="16"><g>
+                <path d="M24 13C18 8 12 8 5 10v27c7-2 13-2 19 3 6-5 12-5 19-3V10c-7-2-13-2-19 3Zm0 0v27"/>
+                <path class="icon-accent" d="m11 17 7 1m-7 6 7 1m12-7 7-1m-7 8 7-1"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="24" height="24"><g>
+                <path d="M24 13C18 8 12 8 5 10v27c7-2 13-2 19 3 6-5 12-5 19-3V10c-7-2-13-2-19 3Zm0 0v27"/>
+                <path class="icon-accent" d="m11 17 7 1m-7 6 7 1m12-7 7-1m-7 8 7-1"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="32" height="32"><g>
+                <path d="M24 13C18 8 12 8 5 10v27c7-2 13-2 19 3 6-5 12-5 19-3V10c-7-2-13-2-19 3Zm0 0v27"/>
+                <path class="icon-accent" d="m11 17 7 1m-7 6 7 1m12-7 7-1m-7 8 7-1"/>
+              </g></svg>
+            <span>16 / 24 / 32</span>
+          </span>
+        </label>
+        <label class="candidate" for="choice-revision">
+          <span class="candidate-top"><span class="candidate-number">05</span><span class="candidate-state" aria-hidden="true">Select</span></span>
+          <input id="choice-revision" type="radio" name="icon-choice" value="revision" aria-labelledby="name-revision" aria-describedby="reason-revision" disabled>
+          <span class="candidate-stage">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="80" height="80" role="img" aria-label="Two offset pages and a revision arrow">
+              <g id="mark-revision">
+                <path d="M30 7H8v29h6M18 15h22v27H18V15ZM24 24h10M24 31h7"/>
+                <path class="icon-accent" d="M33 4h9v9m0-9-8 8"/>
+              </g>
+            </svg>
+          </span>
+          <span id="name-revision" class="candidate-name">05 · Next leaf</span>
+          <span id="reason-revision" class="candidate-rationale">Offset pages and a returning turn hold the previous revision in view as the report evolves.</span>
+          <span class="candidate-sizes" aria-hidden="true">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="16" height="16"><g>
+                <path d="M30 7H8v29h6M18 15h22v27H18V15ZM24 24h10M24 31h7"/>
+                <path class="icon-accent" d="M33 4h9v9m0-9-8 8"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="24" height="24"><g>
+                <path d="M30 7H8v29h6M18 15h22v27H18V15ZM24 24h10M24 31h7"/>
+                <path class="icon-accent" d="M33 4h9v9m0-9-8 8"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="32" height="32"><g>
+                <path d="M30 7H8v29h6M18 15h22v27H18V15ZM24 24h10M24 31h7"/>
+                <path class="icon-accent" d="M33 4h9v9m0-9-8 8"/>
+              </g></svg>
+            <span>16 / 24 / 32</span>
+          </span>
+        </label>
+        <label class="candidate" for="choice-mooring">
+          <span class="candidate-top"><span class="candidate-number">06</span><span class="candidate-state" aria-hidden="true">Select</span></span>
+          <input id="choice-mooring" type="radio" name="icon-choice" value="mooring" aria-labelledby="name-mooring" aria-describedby="reason-mooring" disabled>
+          <span class="candidate-stage">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="80" height="80" role="img" aria-label="An anchor with a circular head and wide curved base">
+              <g id="mark-mooring">
+                <circle class="icon-accent" cx="24" cy="10" r="5"/>
+                <path d="M24 15v26M15 23h18M7 29c0 8 8 12 17 12s17-4 17-12M7 29l-2 6m2-6 6 2m28-2 2 6m-2-6-6 2"/>
+              </g>
+            </svg>
+          </span>
+          <span id="name-mooring" class="candidate-name">06 · Mooring</span>
+          <span id="reason-mooring" class="candidate-rationale">A small anchor gives a conversation a fixed point, rather than letting it drift to another passage.</span>
+          <span class="candidate-sizes" aria-hidden="true">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="16" height="16"><g>
+                <circle class="icon-accent" cx="24" cy="10" r="5"/>
+                <path d="M24 15v26M15 23h18M7 29c0 8 8 12 17 12s17-4 17-12M7 29l-2 6m2-6 6 2m28-2 2 6m-2-6-6 2"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="24" height="24"><g>
+                <circle class="icon-accent" cx="24" cy="10" r="5"/>
+                <path d="M24 15v26M15 23h18M7 29c0 8 8 12 17 12s17-4 17-12M7 29l-2 6m2-6 6 2m28-2 2 6m-2-6-6 2"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="32" height="32"><g>
+                <circle class="icon-accent" cx="24" cy="10" r="5"/>
+                <path d="M24 15v26M15 23h18M7 29c0 8 8 12 17 12s17-4 17-12M7 29l-2 6m2-6 6 2m28-2 2 6m-2-6-6 2"/>
+              </g></svg>
+            <span>16 / 24 / 32</span>
+          </span>
+        </label>
+        <label class="candidate" for="choice-passage">
+          <span class="candidate-top"><span class="candidate-number">07</span><span class="candidate-state" aria-hidden="true">Select</span></span>
+          <input id="choice-passage" type="radio" name="icon-choice" value="passage" aria-labelledby="name-passage" aria-describedby="reason-passage" disabled>
+          <span class="candidate-stage">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="80" height="80" role="img" aria-label="Brackets surrounding three lines with a highlighted middle line">
+              <g id="mark-passage">
+                <path d="M13 8H6v32h7M35 8h7v32h-7M18 13h12M18 35h12"/>
+                <path class="icon-accent" d="M15 24h18" stroke-width="5"/>
+              </g>
+            </svg>
+          </span>
+          <span id="name-passage" class="candidate-name">07 · Passage</span>
+          <span id="reason-passage" class="candidate-rationale">Open brackets frame one highlighted line: Markdown made addressable, without losing the surrounding text.</span>
+          <span class="candidate-sizes" aria-hidden="true">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="16" height="16"><g>
+                <path d="M13 8H6v32h7M35 8h7v32h-7M18 13h12M18 35h12"/>
+                <path class="icon-accent" d="M15 24h18" stroke-width="5"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="24" height="24"><g>
+                <path d="M13 8H6v32h7M35 8h7v32h-7M18 13h12M18 35h12"/>
+                <path class="icon-accent" d="M15 24h18" stroke-width="5"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="32" height="32"><g>
+                <path d="M13 8H6v32h7M35 8h7v32h-7M18 13h12M18 35h12"/>
+                <path class="icon-accent" d="M15 24h18" stroke-width="5"/>
+              </g></svg>
+            <span>16 / 24 / 32</span>
+          </span>
+        </label>
+        <label class="candidate" for="choice-waypoint">
+          <span class="candidate-top"><span class="candidate-number">08</span><span class="candidate-state" aria-hidden="true">Select</span></span>
+          <input id="choice-waypoint" type="radio" name="icon-choice" value="waypoint" aria-labelledby="name-waypoint" aria-describedby="reason-waypoint" disabled>
+          <span class="candidate-stage">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="80" height="80" role="img" aria-label="A diamond containing a bent route to a point">
+              <g id="mark-waypoint">
+                <path d="m24 4 20 20-20 20L4 24 24 4Z"/>
+                <path class="icon-accent" d="M14 28h9V18h9"/>
+                <circle class="icon-solid" cx="32" cy="18" r="3"/>
+              </g>
+            </svg>
+          </span>
+          <span id="name-waypoint" class="candidate-name">08 · Waypoint</span>
+          <span id="reason-waypoint" class="candidate-rationale">A path through a diamond lands on a precise point. Find the source again, even after a long read.</span>
+          <span class="candidate-sizes" aria-hidden="true">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="16" height="16"><g>
+                <path d="m24 4 20 20-20 20L4 24 24 4Z"/>
+                <path class="icon-accent" d="M14 28h9V18h9"/>
+                <circle class="icon-solid" cx="32" cy="18" r="3"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="24" height="24"><g>
+                <path d="m24 4 20 20-20 20L4 24 24 4Z"/>
+                <path class="icon-accent" d="M14 28h9V18h9"/>
+                <circle class="icon-solid" cx="32" cy="18" r="3"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="32" height="32"><g>
+                <path d="m24 4 20 20-20 20L4 24 24 4Z"/>
+                <path class="icon-accent" d="M14 28h9V18h9"/>
+                <circle class="icon-solid" cx="32" cy="18" r="3"/>
+              </g></svg>
+            <span>16 / 24 / 32</span>
+          </span>
+        </label>
+        <label class="candidate" for="choice-strata">
+          <span class="candidate-top"><span class="candidate-number">09</span><span class="candidate-state" aria-hidden="true">Select</span></span>
+          <input id="choice-strata" type="radio" name="icon-choice" value="strata" aria-labelledby="name-strata" aria-describedby="reason-strata" disabled>
+          <span class="candidate-stage">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="80" height="80" role="img" aria-label="Three stacked diamond-shaped layers">
+              <g id="mark-strata">
+                <path class="icon-accent" d="m24 5 18 10-18 10L6 15 24 5Z"/>
+                <path d="m6 24 18 10 18-10M6 33l18 10 18-10"/>
+              </g>
+            </svg>
+          </span>
+          <span id="name-strata" class="candidate-name">09 · Strata</span>
+          <span id="reason-strata" class="candidate-rationale">A stack of quiet layers makes revision history visible: new context, with the earlier record preserved.</span>
+          <span class="candidate-sizes" aria-hidden="true">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="16" height="16"><g>
+                <path class="icon-accent" d="m24 5 18 10-18 10L6 15 24 5Z"/>
+                <path d="m6 24 18 10 18-10M6 33l18 10 18-10"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="24" height="24"><g>
+                <path class="icon-accent" d="m24 5 18 10-18 10L6 15 24 5Z"/>
+                <path d="m6 24 18 10 18-10M6 33l18 10 18-10"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="32" height="32"><g>
+                <path class="icon-accent" d="m24 5 18 10-18 10L6 15 24 5Z"/>
+                <path d="m6 24 18 10 18-10M6 33l18 10 18-10"/>
+              </g></svg>
+            <span>16 / 24 / 32</span>
+          </span>
+        </label>
+        <label class="candidate" for="choice-ribbon">
+          <span class="candidate-top"><span class="candidate-number">10</span><span class="candidate-state" aria-hidden="true">Select</span></span>
+          <input id="choice-ribbon" type="radio" name="icon-choice" value="ribbon" aria-labelledby="name-ribbon" aria-describedby="reason-ribbon" disabled>
+          <span class="candidate-stage">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="80" height="80" role="img" aria-label="An angular S formed from a folded ribbon">
+              <g id="mark-ribbon">
+                <path class="icon-solid" d="M12 6h27v8H17l22 20-7 8H6v-8h22L6 14l6-8Z"/>
+                <path class="icon-fold" d="m17 14 11 10m0 10L17 24"/>
+              </g>
+            </svg>
+          </span>
+          <span id="name-ribbon" class="candidate-name">10 · Sillage ribbon</span>
+          <span id="reason-ribbon" class="candidate-rationale">A folded S makes a compact signature. One continuous reading journey, with a turn for each revision.</span>
+          <span class="candidate-sizes" aria-hidden="true">
+            <svg class="candidate-art" viewBox="0 0 48 48" width="16" height="16"><g>
+                <path class="icon-solid" d="M12 6h27v8H17l22 20-7 8H6v-8h22L6 14l6-8Z"/>
+                <path class="icon-fold" d="m17 14 11 10m0 10L17 24"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="24" height="24"><g>
+                <path class="icon-solid" d="M12 6h27v8H17l22 20-7 8H6v-8h22L6 14l6-8Z"/>
+                <path class="icon-fold" d="m17 14 11 10m0 10L17 24"/>
+              </g></svg>
+            <svg class="candidate-art" viewBox="0 0 48 48" width="32" height="32"><g>
+                <path class="icon-solid" d="M12 6h27v8H17l22 20-7 8H6v-8h22L6 14l6-8Z"/>
+                <path class="icon-fold" d="m17 14 11 10m0 10L17 24"/>
+              </g></svg>
+            <span>16 / 24 / 32</span>
+          </span>
+        </label>
+      </div>
+    </fieldset>
+    <footer class="gallery-footer">A proposal, not an application setting. Nothing is saved, sent to a service or applied to Sillage. Integration is a separate decision.</footer>
+  </main>
+  <script>
+// Deliberately transient: this standalone board never reads or writes browser storage.
+const choices = [...document.querySelectorAll('input[name="icon-choice"]')];
+const status = document.getElementById('selection-status');
+const preview = document.getElementById('chosen-preview');
+const clear = document.getElementById('clear-choice');
+
+function showChoice(id) {
+  const selected = choices.find(choice => choice.value === id);
+  for (const choice of choices) {
+    choice.checked = choice === selected;
+    choice.closest('.candidate').querySelector('.candidate-state').textContent = choice.checked ? 'Selected ✓' : 'Select';
+  }
+  // SVGElement.hidden is not reflected in Chrome. Toggle the attribute explicitly.
+  preview.toggleAttribute('hidden', !selected);
+  preview.replaceChildren();
+  clear.disabled = !selected;
+  if (selected) {
+    // Clone trusted inline geometry: dynamic <use> references can fail on file://.
+    const artwork = document.getElementById(`mark-${selected.value}`).cloneNode(true);
+    artwork.removeAttribute('id');
+    preview.append(artwork);
+    const name = document.getElementById(selected.getAttribute('aria-labelledby')).textContent;
+    status.textContent = `Selected for this visit: ${name}`;
+  } else {
+    status.textContent = 'No icon selected. Choose a proposal below.';
+  }
+}
+
+for (const choice of choices) {
+  choice.disabled = false;
+  choice.addEventListener('change', () => {
+    if (choice.checked) showChoice(choice.value);
+  });
+}
+clear.addEventListener('click', () => {
+  showChoice(null);
+  choices[0].focus();
+});
+showChoice(null);
+// Also discard a browser-restored form state when navigating back to this file.
+window.addEventListener('pageshow', () => showChoice(null));
+  </script>
+</body>
+</html>

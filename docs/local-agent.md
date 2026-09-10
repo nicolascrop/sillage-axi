@@ -27,12 +27,12 @@ The server verifies the exact reservation before writing a lifecycle failure; it
 For a local agent that can attach to a subprocess's stdin/stdout, start this command **explicitly from the Sillage checkout**:
 
 ```sh
-npm run local-agent
-# Nondefault loopback port:
-SILLAGE_URL=http://127.0.0.1:3211 npm run local-agent
+node src/local-agent.js
+# Or, for a nondefault loopback port:
+SILLAGE_URL=http://127.0.0.1:3211 node src/local-agent.js
 ```
 
-For machine attachment use `node src/local-agent.js` directly so npm's banner is not mixed into JSONL. Sillage never launches this command itself. It sends no request to any model; your existing local agent must own the other end of these streams. It is also possible to type the JSON lines manually for protocol diagnosis, but doing so is not an AI experience.
+Use Node directly for machine attachment: npm's normal script banner can pollute the JSONL stdout stream. Keep stderr separate from stdout. The npm script remains a convenience for human invocation, not a raw JSONL attachment command. Sillage never launches this command itself. It sends no request to any model; your existing local agent must own the other end of these streams. It is also possible to type the JSON lines manually for protocol diagnosis, but doing so is not an AI experience.
 
 The bridge first emits `type:"ready-required"`. It remains unavailable and reserves nothing until the attached agent sends:
 

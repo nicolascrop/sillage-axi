@@ -57,9 +57,7 @@ node --test test/http.test.js test/ui.test.js
 
 ## Browser walkthrough and limitations
 
-The short human walkthrough is in [README.md](../README.md#walkthrough), using the two committed sample reports. A real Chrome pass used `chrome-devtools-axi` against a loopback-only service and checked the current reader at 1280×900 and 390×844. The wide pass showed the wider reading canvas with no horizontal overflow; the narrow pass kept the question bubble inside the usable client width, stacked the layout, and kept Threads hidden until toggled. The browser accessibility snapshot exposed the Sillage mark, local-agent state, import and Threads controls, focusable passages, and the **Ask question** action. An unavailable bridge left a question visibly queued, then a connected JSONL bridge changed the indicator to active and delivered a cited terminal answer. A local revision import updated the open reader without reload and kept the original reply and quote while marking the changed passage for review. Chrome on the secure loopback origin reported `showOpenFilePicker` support, so the explicit read-only file-capability path was available; browsers without it retain the documented reselect/import fallback. Evidence screenshots and geometry are under `/tmp/no-mistakes-evidence/01M236K1M6A33Q6JDXRBKNJP69/`.
-
-jsdom still covers reader behavior against the local service, including selection, forms, close/reopen, polling and escaping; it is supplementary to the real-browser layout, scrolling and accessibility pass.
+The short human walkthrough is in [README.md](../README.md#walkthrough), using the two committed sample reports. A browser binary/`chrome-devtools-axi` was not available during the original implementation validation. **That initial pass did not include real-browser visual inspection.** jsdom exercised the reader's actual JavaScript against the local service, including selection, forms, close/reopen, polling and escaping, but cannot verify real layout/scroll geometry, CSP enforcement, or all accessibility behavior. The later UI delivery's accepted Chrome coverage and remaining limitations are recorded below.
 
 Excalidraw is intentionally an explicit unsupported, source-preserving block; there is no editor or unsafe HTML/SVG embed. This is a prototype with conservative unmatched behavior, one question/reply per thread, and no automated reattachment or external provider policy.
 
@@ -80,7 +78,7 @@ git diff --check
 - Checked the README and skill against `package.json`, `src/server.js`, `src/store.js`, `src/render.js`, `public/app.js`, and `src/fake-agent.js`. Existing README shell examples and safety-limit text are unchanged. The skill's request/answer examples use the implemented v1 routes, original revision/block IDs, custom write header, exclusive leases, and idempotent terminal results.
 - Ad hoc documentation checks used installed PyYAML to parse the skill frontmatter, Markdown-it to parse Markdown and check local links/heading anchors, and `bash -n` for shell fences. JSON fences parsed successfully. No dedicated Markdown linter or documentation-check script is configured in the project.
 - Executed the skill's actual `curl` examples against a separate loopback service process, substituting only the configured port and returned IDs/tokens. Verified import, passage lookup, question retry, reservation, cited answer, identical-answer retry, and empty queue. Restarted that process with the same database and verified persistence; imported `examples/report-changed.md` and verified `needs_review` with the original context intact. An old-revision question in a closed thread still received a labeled fake-agent answer citing the original revision; the next fake-agent invocation reported idle. A separate request stored an explicit terminal failure. The test service was stopped afterward; all private artifacts remain under ignored `.data/public-docs/`.
-- The documentation walkthrough remained loopback-only. The current UI iteration's real-browser evidence is recorded below; no browser listener was exposed beyond loopback.
+- `chrome-devtools-axi` was not available in that public-documentation lane or the inspected Windows host tool installation. **That follow-up added no real-browser validation**; it retained the initial browser coverage limitations. The listener was never exposed beyond loopback.
 
 ## Material Darker Air / local-agent / live-revision iteration
 
@@ -92,10 +90,73 @@ npm run check
 git diff --check
 ```
 
-- **40 tests passed, 0 failed** before delivery validation. All HTTP remains loopback, with disposable SQLite databases; no model, provider, external fetch, secret or reader report was used.
+- **37 tests passed, 0 failed** before delivery validation. All HTTP remains loopback, with disposable SQLite databases; no model, provider, external fetch, secret or reader report was used.
 - New lifecycle tests exercise the actual JSONL bridge with separately supplied fixture replies, queue draining, active/unavailable states, explicit readiness, disconnect/EOF, heartbeat expiry, terminal deadlines, stale results, and service-restart recovery. A bridge process alone is not advertised as an agent. This validates transport, **not local-model inference**; an already-running fully local reasoner must be connected separately.
 - New reader DOM tests cover hidden-by-default compact title/topic entries, toggle state, visible active/unavailable and connection instructions, literal untrusted worker/reply text, Ask question wording, live imports with no threads, French Markdown, safe-anchor scroll-offset calculation, unchanged-poll DOM identity, old-revision drafts and explicit review state, and preserved durable discussions.
 - File-capability fixtures verify no disk observation before selection, read-only handle use, unchanged-content deduplication, automatic updates, stop, mismatching-file rejection, conflict pause and permission loss. Store tests exercise atomic compare-and-import against stale revision IDs. Ordinary file input fallback explicitly requires reselect/import; it is not falsely called watching.
 - Static CSS assertions check readable prose width, narrow-screen stacking, horizontal table overflow, pointer and focus affordances. HTTP checks verify the fixed bundled SVG mark has only svg/rect/path elements, no active or external references, a local favicon/header use, no arbitrary report asset endpoint, same-origin CSP and protected lifecycle writes.
-- A real Chrome 148 pass through `chrome-devtools-axi` covered wide 1280×900 and narrow 390×844 layouts. It observed no horizontal overflow; the narrow question bubble measured 351px wide at x=12 inside a 375px usable client width. It also checked focusable passage affordances, the unavailable and active local-agent states, compact Threads after toggling, the Ask question wording, and a cited answer through the JSONL bridge. A local compare-and-import changed revision appeared automatically without reload, preserving the open answer and original quote while showing **Passage to review**. The secure loopback page exposed `showOpenFilePicker`, and the UI surfaced the explicit read-only connection path plus its fallback guidance. Browser background throttling and editor file replacement can still delay or interrupt explicit disk observation, as documented in the README.
+- Initial implementation validation used jsdom and static CSS checks, but the subsequent accepted delivery evidence in [the merged UI change](https://github.com/nicolascrop/sillage/pull/2) records a real Chrome wide/narrow pass using `chrome-devtools-axi`: report import, queued question/unavailable state, compact Threads, active local-agent presence, a supplied cited answer, and reopening the durable thread. Chrome exposed a narrow question-bubble overflow; the merged fix and regression test use the usable client width. The recorded post-fix geometry is `viewport=390, clientWidth=390, scrollWidth=390, bubbleRight=378, overflow=false, threadsHidden=true, questionAction=Ask question`.
+- That accepted Chrome evidence does **not** establish native File System Access permissions, live-update scroll anchoring, comprehensive accessibility, browser CSP enforcement, or local-model inference. The corresponding jsdom geometry/file handles remain controlled fixtures. Browser background throttling and editor file replacement can delay or interrupt explicit disk observation, as documented in the README.
 - The single implemented direction is Material Darker Air. Plum & Amber is documentation only. No Yuba/Lavish files, second report, Delta translation, external provider or unrelated local-only capture surface was introduced.
+
+## UI delivery validation follow-up
+
+The subsequent validation recorded in [the existing UI follow-up](https://github.com/nicolascrop/sillage/pull/3) extended the earlier UI evidence above:
+
+- **40 tests passed, 0 failed** before delivery validation, using loopback and disposable databases without a model, external provider, secret or reader report.
+- A real Chrome 148 pass through `chrome-devtools-axi` covered wide 1280×900 and narrow 390×844 layouts. It observed no horizontal overflow; the narrow question bubble measured 351px wide at x=12 inside a 375px usable client width. It also checked focusable passage affordances, the unavailable and active local-agent states, compact Threads after toggling, the Ask question wording, and a cited answer through the JSONL bridge. A local compare-and-import changed revision appeared automatically without reload, preserving the open answer and original quote while showing **Passage to review**. The secure loopback page exposed `showOpenFilePicker`, and the UI surfaced the explicit read-only connection path plus its fallback guidance. Browser background throttling and editor file replacement can still delay or interrupt explicit disk observation, as documented in the README.
+- The browser accessibility snapshot exposed the Sillage mark, local-agent state, import and Threads controls, focusable passages, and the **Ask question** action. Evidence screenshots and geometry were recorded under `/tmp/no-mistakes-evidence/01M236K1M6A33Q6JDXRBKNJP69/` during that validation, not this merge reconciliation.
+- File-picker API availability and the connection UI do not prove native file permission/observation behavior. The supplied bridge answers validate transport and citations, not local-model inference; comprehensive accessibility and browser CSP enforcement remain outside the recorded pass.
+
+## Stdio launch-command follow-up
+
+Validated in the isolated `fm/sillage-stdio-command-followup` worktree, based on the merged UI default branch, with Node.js **v24.18.1** and npm **11.16.0**:
+
+```sh
+node --test test/stdio-command.test.js test/relay.test.js test/ui.test.js
+npm test
+npm run check
+node --check test/stdio-command.test.js
+node --check test/relay.test.js
+node --check test/ui.test.js
+git diff --check
+```
+
+- **16 focused tests and all 44 repository tests passed, 0 failed**; syntax and whitespace checks passed. Dependency installation used `npm ci --ignore-scripts --no-audit --no-fund --cache .npm-cache`; the tests and syntax checks afterward were offline, using only loopback and disposable databases.
+- The four new documentation-contract tests failed on the old instructions, then passed after all public attachment paths switched to `node src/local-agent.js`. README, connection-guide and UI examples include `SILLAGE_URL=http://127.0.0.1:3211 node src/local-agent.js` for a nondefault loopback port. The npm script is retained only as a human-invocation convenience; its normal banner-producing form is not advertised for raw JSONL attachment.
+- The UI test checks both displayed command forms. The actual direct Node subprocess test uses an ephemeral loopback port via `SILLAGE_URL`, parses every stdout line as JSON, and now checks the complete readiness/connect/request/save/stop sequence through stdio close. Fixture replies still validate transport and original citations, not model inference. No runtime protocol or local-only boundary changed.
+- A focused Chrome run was subsequently completed for this command/documentation follow-up through the isolated `chrome-devtools-axi` session: the updated connection panel was inspected at 1440px and 390px, with the direct Node command, stderr separation, npm-banner warning, nondefault loopback example and local-only cautions visible; both viewports reported `clientWidth === scrollWidth`. This extends visual evidence only to the updated connection panel and does not claim model inference or broader browser coverage.
+
+## Standalone icon proposal board
+
+Validated in the isolated `fm/sillage-icon-gallery` worktree with Node.js **v24.18.1** and Chrome **148**, using the isolated `chrome-devtools-axi` session `sillage-icon-gallery`. This evidence concerns only [`proposals/icons.html`](../proposals/icons.html), not the reader or its earlier browser-coverage limitations.
+
+```sh
+npm test
+npm run check
+git diff --check
+# Open proposals/icons.html directly as a file:// URL in Chrome; no server needed.
+```
+
+- **44 tests passed, 0 failed.** Four deterministic jsdom tests check exactly ten distinct named/labeled SVG candidates, matching 16/24/32 px geometry, all ten exclusive selections, status/preview/clear behavior, reload and restored-page reset, and absence of storage, requests, external references or reader integration.
+- Chrome screenshots were inspected at **1440×1080** (five columns, two rows) and **390×844** (one column, all ten cards). No horizontal overflow; an additional **320 px** width check also stayed within the viewport. Small-size artwork and selected preview render directly from inline geometry.
+- Native Tab/arrow navigation selected Margin note with visible focus and exclusive highlighting. Pointer selection selected Mooring; Clear choice removed the highlight/preview and returned focus to the first radio. An actual browser reload (`PerformanceNavigationTiming.type === 'reload'`) reset selection to zero. The accessibility snapshot exposes ten named radios with rationale descriptions and the live selection status.
+- The browser pass caught SVG-specific issues not modeled by jsdom: assigning `SVGElement.hidden` did not reveal the selected preview, and same-file `<use>` references produced a file-origin error. The board now toggles the hidden attribute explicitly and uses inline geometry, with matching regression assertions. Final Chrome console: **no messages**. Network panel: **only the local HTML file**, no service or external asset requests.
+- Local evidence remains gitignored under `.data/icon-gallery/`: `wide.png`, `wide-selected.png`, `narrow-full.png`, `narrow-selected.png`, `narrow-card.png`, plus DOM, console, network and command logs. No production logo, favicon, route, reader link, application setting or persistence behavior was changed. Other browsers, a screen reader and forced-colors mode were not manually exercised.
+
+## Existing-branch merge reconciliation
+
+Reconciled `fm/sillage-ui-feedback-adjustments` with `main` at `673a2f9` in an isolated worktree. Kept the direct Node stdio instructions and stronger JSONL regression checks, the standalone icon proposal board and its tests, and both branches' validation history. The resolved application, tests, dependencies and CI workflow are identical to that main revision; the remaining content differences are documentation clarifications and the later UI evidence above.
+
+```sh
+npm ci --ignore-scripts --offline --cache .npm-cache --no-audit --no-fund
+node --test test/stdio-command.test.js test/relay.test.js test/ui.test.js test/icon-proposals.test.js
+npm test
+npm run check
+git diff --cached --check
+git diff --check
+```
+
+- Node.js **v24.18.1**, npm **11.16.0**: **20 focused tests and all 48 repository tests passed, 0 failed**; syntax and whitespace checks passed. Installation used the worktree-local cache; tests remained offline apart from loopback HTTP and used disposable databases.
+- Full coverage retains managed-marker migration/restart ownership, legacy lease compatibility, original citations, no-silent-remap revisions, durable threads, live-update/file-capability fixtures, narrow bubble containment, and local asset/HTTP safety. No runtime behavior, local-only boundary or unrelated main work was removed.
+- This reconciliation performed no new Chrome pass and does not expand the recorded browser evidence above. Final remote CI is a separate delivery gate, not claimed by these local results.
