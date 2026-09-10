@@ -51,7 +51,7 @@ export function inspect(store, relay, { view, id, revision, fields, limit = 100,
   const row = revisionId === null ? null : db.prepare('SELECT id,title,source,created_at FROM revisions WHERE id=?').get(revisionId);
   if (!row) {
     if (revision !== undefined || view === 'block') throw Object.assign(new Error('Revision not found'), { status: 404 });
-    return view === 'blocks' ? { revision_id: null, total: 0, shown: 0, offset, blocks: [], empty: '0 passages: no report has been imported.' }
+    return view === 'blocks' ? { revision_id: null, current_revision_id: current, total: 0, shown: 0, offset, blocks: [], empty: '0 passages: no report has been imported.' }
       : { document: null, empty: '0 reports: import a local Markdown file explicitly.' };
   }
   if (view === 'document') return { document: { id: row.id, title: row.title, created_at: row.created_at, source: preview(row.source, full),
@@ -59,7 +59,7 @@ export function inspect(store, relay, { view, id, revision, fields, limit = 100,
   if (view === 'blocks') {
     const total = db.prepare('SELECT COUNT(*) AS n FROM blocks WHERE revision_id=?').get(row.id).n;
     const rows = db.prepare('SELECT id,kind,start_line,end_line,ordinal,revision_id FROM blocks WHERE revision_id=? ORDER BY ordinal LIMIT ? OFFSET ?').all(row.id, limit, offset);
-    return { revision_id: row.id, total, shown: rows.length, offset, blocks: project(rows, fields || listFields.blocks.slice(0, 4)),
+    return { revision_id: row.id, current_revision_id: current, total, shown: rows.length, offset, blocks: project(rows, fields || listFields.blocks.slice(0, 4)),
       ...(total ? {} : { empty: '0 semantic passages in this revision.' }) };
   }
   const block = db.prepare('SELECT * FROM blocks WHERE revision_id=? AND id=?').get(row.id, id);

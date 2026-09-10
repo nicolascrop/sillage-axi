@@ -74,17 +74,27 @@ test('empty inspection hints identify the next executable local command', async 
   assert.equal(noReportThreads.revision_id, null);
   assert.ok(noReportThreads.help[0].includes('--expected null'));
 
+  const historicalEmptyRevision = Number(app.store.db.prepare(
+    'INSERT INTO revisions(title,source,html,toc,created_at) VALUES(?,?,?,?,?)'
+  ).run('Historical empty', '<!-- comment -->', '', '[]', Date.now()).lastInsertRowid);
   const doc = app.store.importReport({ title: 'Report', source: '# Heading\n\nExact context.' });
   const reportThreads = decode((await app.cli(['threads'])).stdout);
   assert.equal(reportThreads.revision_id, doc.id);
   assert.ok(reportThreads.help[0].includes(`sillage blocks --revision ${doc.id}`));
 
-  const emptyRevision = Number(app.store.db.prepare(
+  const historicalBlocks = decode((await app.cli(['blocks', '--revision', String(historicalEmptyRevision)])).stdout);
+  assert.equal(historicalBlocks.revision_id, historicalEmptyRevision);
+  assert.equal(historicalBlocks.current_revision_id, doc.id);
+  assert.ok(historicalBlocks.help[0].includes(`--expected ${doc.id}`));
+  assert.doesNotMatch(historicalBlocks.help[0], new RegExp(`--expected ${historicalEmptyRevision}\\b`));
+
+  const currentEmptyRevision = Number(app.store.db.prepare(
     'INSERT INTO revisions(title,source,html,toc,created_at) VALUES(?,?,?,?,?)'
   ).run('Empty', '<!-- comment -->', '', '[]', Date.now()).lastInsertRowid);
   const emptyBlocks = decode((await app.cli(['blocks'])).stdout);
-  assert.equal(emptyBlocks.revision_id, emptyRevision);
-  assert.ok(emptyBlocks.help[0].includes(`--expected ${emptyRevision}`));
+  assert.equal(emptyBlocks.revision_id, currentEmptyRevision);
+  assert.equal(emptyBlocks.current_revision_id, currentEmptyRevision);
+  assert.ok(emptyBlocks.help[0].includes(`--expected ${currentEmptyRevision}`));
 });
 
 test('home is scoped, content-first and read-only; offline probes never create data', async t => {

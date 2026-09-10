@@ -87,7 +87,8 @@ export async function main(argv) {
         help.push('Only a separately authorized local-only reasoner may invoke sillage to inspect reader content.');
       } else if (name === 'blocks' || name === 'threads') {
         if (data.total) help.push(hint(name === 'blocks' ? `sillage block <id> --revision ${data.revision_id}` : 'sillage thread <id>'));
-        else if (name === 'blocks') help.push(hint(commandsImportExample(data.revision_id)));
+        else if (name === 'blocks' && data.current_revision_id !== undefined) help.push(hint(commandsImportExample(data.current_revision_id)));
+        else if (name === 'blocks' && data.revision_id === null) help.push(hint(commandsImportExample()));
         else if (data.revision_id === null) help.push(hint(commandsImportExample()));
         else help.push(hint(`sillage blocks --revision ${data.revision_id}`));
         if (data.offset + data.shown < data.total) help.push(hint(`sillage ${name}${name === 'blocks' ? ` --revision ${data.revision_id}` : ''} --offset ${data.offset + data.shown} --limit ${options.limit || 100}${options.fields ? ` --fields ${options.fields.join(',')}` : ''}`));
