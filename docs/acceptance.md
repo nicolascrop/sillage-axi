@@ -226,18 +226,9 @@ repository `nicolascrop/sillage-axi`; GitHub's historical URL is therefore an
 active redirect rather than a second repository. No external provider, package
 publication or network fetch was used by the application/tests.
 
-| Old surface | New surface | Invariant preserved |
-| --- | --- | --- |
-| package `sillage` | private package `sillage-axi` | `private: true`, version, dependencies, Node floor and npm scripts remain coherent |
-| command `sillage` | primary command `sillage-axi` | both npm bins and every finite command remain available |
-| `node bin/sillage.js` | `node bin/sillage-axi.js` | historical direct path and ESM source imports remain valid |
-| skill path and `/sillage` | Sillage AXI wording at the same path/invocation | one generated instruction source; no duplicate skill instructions |
-| UI/service `Sillage` labels | `Sillage AXI` | public wording updated without changing machine identifiers |
-| `/sillage.svg` | `/sillage.svg` | existing HTTP asset route remains available |
-| `SILLAGE_*`, `.sillage/` and `.data/sillage.sqlite` | unchanged | environment, scoped config and default database paths are not renamed |
-| v1 routes, JSON/JSONL, `sillage-agent-v1`, `X-Sillage-Local` | unchanged | wire contracts, fixtures, UUID/revision IDs and SQLite schema require no migration |
-
-The migration tests execute both command paths from another directory for
+The [migration guide](migration-sillage-axi.md) owns the compatibility map and
+preserved v1 invariants. The migration tests execute both command paths from
+another directory for
 `--help`/`--version`, assert that probes create no database, verify both npm
 installation bins offline, and retain the historical direct Node entrypoints.
 The full suite also exercises the unchanged HTTP, JSONL, schema, loopback and
