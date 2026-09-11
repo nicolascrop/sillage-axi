@@ -65,8 +65,14 @@ function focusDescriptor() {
     type: 'passage', blockId: active.dataset.blockId,
   };
   const tableScroll = active.closest?.('.table-scroll');
-  const table = tableScroll?.querySelector('table[data-block-id]');
-  if (table) return { type: 'table-scroll', blockId: table.dataset.blockId, scrollLeft: tableScroll.scrollLeft };
+  const reportTable = tableScroll?.querySelector('table[data-block-id]');
+  if (reportTable) return { type: 'table-scroll', blockId: reportTable.dataset.blockId, scrollLeft: tableScroll.scrollLeft };
+  const message = tableScroll?.closest('.message');
+  if (message) return {
+    type: 'response-table', messageId: message.dataset.messageId,
+    tableIndex: [...message.querySelectorAll('.table-scroll')].indexOf(tableScroll),
+    scrollLeft: tableScroll.scrollLeft,
+  };
   return null;
 }
 function restoreFocus(descriptor) {
@@ -83,6 +89,16 @@ function restoreFocus(descriptor) {
   const passage = passageElement(descriptor.blockId);
   if (descriptor.type === 'table-scroll') {
     const tableScroll = passage?.closest('.table-scroll');
+    if (tableScroll) {
+      tableScroll.scrollLeft = descriptor.scrollLeft;
+      tableScroll.focus({ preventScroll: true });
+    }
+    return;
+  }
+  if (descriptor.type === 'response-table') {
+    const message = [...$('messages').querySelectorAll('.message')]
+      .find(item => item.dataset.messageId === descriptor.messageId);
+    const tableScroll = message?.querySelectorAll('.table-scroll')[descriptor.tableIndex];
     if (tableScroll) {
       tableScroll.scrollLeft = descriptor.scrollLeft;
       tableScroll.focus({ preventScroll: true });
@@ -254,6 +270,7 @@ function drawThread() {
   if (!thread) return;
   const signature = JSON.stringify(thread);
   if (drawnThread === signature) return;
+  const focus = focusDescriptor();
   drawnThread = signature;
   $('conversation-state').textContent = labels(thread);
   $('conversation-state').hidden = !labels(thread);
@@ -305,14 +322,16 @@ function drawThread() {
   }));
   log.scrollTop = oldScroll;
   // Reveal the start of a new answer, not only its tail; never scroll the report.
-  if (atEnd && previousEnd < thread.messages.length - 1) {
-    revealMessage(log.children[Math.max(0, previousEnd + 1)]);
+  const newAnswer = thread.messages.findIndex((message, index) => index > previousEnd && message.role === 'agent');
+  if (atEnd && previousEnd >= 0 && newAnswer >= 0) {
+    revealMessage(log.children[newAnswer]);
   }
   $('go-source').hidden = thread.anchor_status !== 'matched' || !passageElement(thread.block_id);
   $('mark-read').hidden = !thread.unread;
   $('close-thread').textContent = thread.closed ? 'Reopen conversation' : 'Close conversation';
   $('snapshot-text').textContent = `Revision ${thread.revision_id}, lines ${thread.context.block.start_line}–${thread.context.block.end_line}\n\n${thread.context.block.source}`;
   drawComposer();
+  restoreFocus(focus);
 }
 function drawComposer() {
   const draft = drafts.get(activeThread);

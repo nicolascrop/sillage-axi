@@ -516,6 +516,31 @@ test('narrow answer arrival reveals its beginning through page scrolling', async
   app.relay.disconnect(session);
 });
 
+test('narrow question save keeps the report passage in place until an answer arrives', async t => {
+  const app = await service(t);
+  const session = app.relay.connect({ worker: 'original-author' });
+  const ui = await reader(app.origin, window => {
+    window.innerWidth = 390;
+    window.HTMLElement.prototype.scrollIntoView = function () {
+      window.lastRevealedMessage = this.dataset.messageId;
+    };
+  });
+  t.after(() => ui.dom.window.close());
+  ui.$('report').querySelector('p').click();
+  ui.$('question').value = 'Keep the report in place';
+  submit(ui, 'question-form');
+  await waitFor(() => ui.$('chat-status').textContent.includes('waiting'));
+  const thread = app.store.threads()[0];
+  assert.equal(ui.window.lastRevealedMessage, undefined);
+  const request = app.relay.reserve(session);
+  app.store.answer(request.request_id, { lease_token: request.lease_token, status: 'answered', body: 'The answer begins here.', citations: [] });
+  app.relay.answered(request.request_id);
+  await ui.poll();
+  const answer = app.store.conversation(thread.id).messages.at(-1);
+  assert.equal(ui.window.lastRevealedMessage, answer.id);
+  app.relay.disconnect(session);
+});
+
 test('saved confirmation offers explicit navigation; quotes remain exact but display readable text', async t => {
   const app = await service(t);
   const ui = await reader(app.origin);
@@ -589,6 +614,27 @@ test('revision refresh restores focus and horizontal position to a report table 
   assert.equal(ui.window.document.activeElement, refreshedRegion);
   assert.equal(refreshedRegion.querySelector('table').dataset.blockId, blockId);
   assert.equal(refreshedRegion.scrollLeft, 27);
+});
+
+test('thread refresh restores focus and horizontal position to a response table region', async t => {
+  const app = await service(t);
+  const doc = app.store.current();
+  const thread = app.store.question(questionInput(doc, { question: 'Explain the table', client_key: 'response-table-focus', quote: 'quoted' }));
+  const session = app.relay.connect({ worker: 'original-author' });
+  const request = app.relay.reserve(session);
+  app.store.answer(request.request_id, { lease_token: request.lease_token, status: 'answered', body: '| Signal | Meaning |\n|---|---|\n| Water | Keep reserves |', citations: [] });
+  app.relay.answered(request.request_id);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const region = ui.$('messages').querySelector('.table-scroll');
+  region.focus();
+  region.scrollLeft = 19;
+  app.store.updateConversation(thread.id, { closed: true });
+  await ui.poll();
+  const refreshedRegion = ui.$('messages').querySelector('.table-scroll');
+  assert.equal(ui.window.document.activeElement, refreshedRegion);
+  assert.equal(refreshedRegion.scrollLeft, 19);
+  app.relay.disconnect(session);
 });
 
 test('author-supplied report language follows exact revisions without translating the English interface', async t => {

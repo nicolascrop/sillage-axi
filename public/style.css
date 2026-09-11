@@ -87,17 +87,17 @@ figcaption { color: #e8c797; font-size: .85rem; }
 #followup-form label { margin: .4rem 0; }
 #followup-submit { margin-top: .5rem; }
 #followup { max-height: 20vh; }
-#bubble { position: fixed; z-index: 5; display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: #303541; box-shadow: 0 16px 48px #0006; border: 1px solid #747fac; border-radius: 12px; padding: 1.2rem; font-size: .9rem; }
+#bubble { position: fixed; z-index: 5; display: flex; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; background: #303541; box-shadow: 0 16px 48px #0006; border: 1px solid #747fac; border-radius: 12px; padding: 1.2rem; font-size: .9rem; }
 #bubble > header { display: flex; align-items: start; gap: .5rem; justify-content: space-between; flex-shrink: 0; }
 #bubble h2 { font-size: 1.05rem; margin: .35rem 0; }
 #bubble-close { padding: 0; min-width: 44px; font-size: 1.3rem; }
-#bubble-context { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+#bubble-context { flex: 0 0 auto; min-height: 0; overflow: visible; }
 #bubble-quote { max-height: 6rem; overflow: auto; white-space: pre-wrap; font-size: .85rem; }
 #bubble-status { color: var(--accent); }
 #question-form { flex-shrink: 0; margin: .75rem 0 0; padding-top: .75rem; border-top: 1px solid var(--border); background: #303541; }
 #question-form label { margin: 0; }
 #question { max-height: min(30vh, 8rem); }
-.message { border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem; }
+.message { border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem; scroll-margin-top: calc(var(--header-height) + 16px); }
 .message.user p, #snapshot-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .message.agent { padding: 1rem; background: #252a32; border-radius: 8px; }
 .markdown > :first-child { margin-top: .6rem; }
