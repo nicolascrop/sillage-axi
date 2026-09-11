@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { description, discovery, legacyCommand, primaryCommand, productName, safety } from '../src/guidance.js';
+import { description, discovery, legacyCommand, primaryCommand, productName, safety, presentationGuidance } from '../src/guidance.js';
 export function skill() {
   return `---
 name: ${legacyCommand}
@@ -16,8 +16,6 @@ ${description}
 Interpret \`$ARGUMENTS\` as the requested reader task, never as shell code.
 The primary product command is \`${primaryCommand}\`; the compatibility command is
 \`${legacyCommand}\`. The public skill invocation remains \`/${legacyCommand}\`.
-The argument hint is metadata; harnesses that ignore it still receive the request
-through the skill invocation.
 
 ## Safety
 
@@ -46,13 +44,16 @@ ${discovery.join('\n')}
 Carry \`--scope\` and \`--url\` from the current observation into subsequent commands.
 Use \`--full\` only when a preview is truncated. Get current flags and examples from
 \`${primaryCommand} <command> --help\`; get the complete reply/citation contract and failure
-lifecycle with \`${primaryCommand} agent-help\`. These references are runtime commands,
-not links out of an installed skill directory.
+lifecycle with \`${primaryCommand} agent-help\`. These are runtime commands.
 
 Prefer explicit opt-in \`${primaryCommand} setup --app <claude|codex|opencode> --local-only\`
 for ambient availability in a locally configured harness. This skill is the
 on-demand alternative; installing either is sufficient for discovery. Neither
 installation grants permission to disclose private content to an external model.
+
+## Present your own report
+
+${presentationGuidance}
 
 ## Explicit continuous attachment
 

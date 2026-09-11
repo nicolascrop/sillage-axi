@@ -19,14 +19,13 @@ h1 { font-size: clamp(1.8rem, 3vw, 2.6rem); } h2 { font-size: 1.45rem; }
 .brand, .toolbar { display: flex; align-items: center; gap: .75rem; }
 .brand strong { font-size: 1.2rem; letter-spacing: .02em; }
 .toolbar { flex-wrap: wrap; justify-content: flex-end; font-size: .8rem; }
-#agent-toggle[data-state=active] { border-color: var(--accent); color: var(--accent); }
+
 #thread-alert { color: #e8c797; }
 #notice { margin: 0; padding: .35rem 2rem; min-height: .5rem; color: #e8c797; font-size: .85rem; }
 #notice:empty { padding: 0; }
-.setup-panel { max-width: 960px; margin: 2rem auto; padding: 2rem; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow-wrap: anywhere; }
-.live-controls { border-top: 1px solid var(--border); margin-top: 2rem; padding-top: 1rem; }
-.layout { display: grid; grid-template-columns: 180px minmax(0, 1fr); max-width: 1640px; margin: auto; align-items: start; gap: clamp(1.5rem, 4vw, 4rem); padding: 2.5rem 3rem 6rem; }
-.layout.threads-open { grid-template-columns: 180px minmax(0, 1fr) 260px; gap: 2rem; }
+.layout { display: grid; grid-template-columns: 160px minmax(0, 1fr) minmax(320px, 380px); max-width: 1920px; margin: auto; align-items: start; gap: 2rem; padding: 2rem 2rem 6rem; }
+.layout.toc-collapsed { grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); }
+#answer-alert { margin: 1rem 2rem 0; padding: .8rem 1rem; border: 1px solid #ad946b; border-radius: 7px; color: #eed5af; background: #35322e; font-size: .85rem; }
 .toc-panel, .threads-panel { position: sticky; top: 6rem; max-height: calc(100vh - 7rem); overflow: auto; font-size: .85rem; min-width: 0; }
 .toc-panel h2, .threads-panel h2 { font-size: 1rem; }
 #toc { padding: 0; list-style: none; }
@@ -55,11 +54,18 @@ th, td { border: 1px solid var(--border); text-align: left; padding: .75rem 1rem
 th { background: var(--panel); }
 figure { margin: 2rem 0; padding: 1rem; border: 1px dashed #aa9677; }
 figcaption { color: #e8c797; font-size: .85rem; }
-.thread-entry { display: block; text-align: left; width: 100%; padding: .9rem .3rem; margin: 0; background: transparent; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
-.thread-entry > * { display: block; overflow-wrap: anywhere; }
-.thread-entry strong { font-size: .9rem; font-weight: 600; }
-.thread-summary { color: var(--muted); font-size: .8rem; margin: .2rem 0; }
-.thread-entry .thread-labels { font-size: .7rem; }
+.threads-panel { background: #2b3039; border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem; box-shadow: -8px 0 28px #0001; scroll-margin-top: 6rem; }
+.chat-header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+.chat-header h2 { margin-top: 0; font-size: 1.15rem; }
+.chat-header label { margin: .4rem 0; color: var(--muted); }
+#thread-select { width: 100%; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.chat-context { border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+#chat-quote { font-size: .85rem; max-height: 8rem; overflow: auto; white-space: pre-wrap; }
+#messages { max-height: 44vh; overflow: auto; overflow-wrap: anywhere; }
+#chat-status, #followup-status { color: var(--muted); font-size: .8rem; }
+#followup-form { border-top: 1px solid var(--border); padding-top: .4rem; }
+#followup-form label { margin: .6rem 0; }
+#followup-submit { margin-top: .6rem; }
 #bubble { position: absolute; z-index: 5; max-height: 75vh; overflow: auto; background: #303541; box-shadow: 0 16px 48px #0006; border: 1px solid #747fac; border-radius: 12px; padding: 1.4rem; font-size: .9rem; }
 #bubble > header { display: flex; align-items: start; gap: .5rem; justify-content: space-between; }
 #bubble h2 { font-size: 1.05rem; margin: .35rem 0; }
@@ -67,10 +73,33 @@ figcaption { color: #e8c797; font-size: .85rem; }
 #bubble-quote { max-height: 9rem; overflow: auto; white-space: pre-wrap; font-size: .85rem; }
 #bubble-status { color: var(--accent); }
 .message { border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem; }
-.message p, #snapshot-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.message.user p, #snapshot-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.message.agent { padding: 1rem; background: #252a32; border-radius: 8px; }
+.markdown > :first-child { margin-top: .6rem; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown h1, .markdown h2 { font-size: 1.15rem; }
+.markdown pre { padding: .8rem; }
 .citation { text-align: left; color: var(--accent); font-size: .8rem; max-width: 100%; overflow-wrap: anywhere; }
-.bubble-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+.chat-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
 #snapshot summary { color: var(--muted); }
 [hidden] { display: none !important; }
-@media (max-width: 1150px) { .layout, .layout.threads-open { grid-template-columns: 140px minmax(0, 1fr); gap: 1.5rem; padding: 2rem; } .threads-panel { grid-column: 2; position: static; max-height: none; } }
-@media (max-width: 700px) { .topbar { position: static; padding: 1rem; flex-wrap: wrap; } .toolbar { justify-content: flex-start; } .layout, .layout.threads-open { display: flex; flex-direction: column; padding: 1.5rem; } .threads-panel, .toc-panel { position: static; max-height: none; width: 100%; } #toc { columns: 2; } #reader { width: 100%; } .setup-panel { margin: 1rem; padding: 1.2rem; } }
+@media (max-width: 1150px) {
+  .layout { grid-template-columns: 120px minmax(0, 1fr) minmax(290px, 330px); gap: 1.2rem; padding: 1.5rem; }
+  .layout.toc-collapsed { grid-template-columns: minmax(0, 1fr) minmax(290px, 330px); }
+}
+@media (max-width: 900px) {
+  .layout, .layout.toc-collapsed { grid-template-columns: minmax(0, 1fr) 320px; }
+  .toc-panel { grid-column: 1 / -1; position: static; max-height: none; }
+  #toc { columns: 2; }
+}
+@media (max-width: 700px) {
+  .topbar { padding: .8rem 1rem; flex-wrap: wrap; }
+  .brand strong { font-size: 1rem; }
+  .toolbar { justify-content: flex-start; }
+  .layout, .layout.toc-collapsed { display: flex; flex-direction: column; padding: 1.2rem; }
+  .threads-panel, .toc-panel { position: static; max-height: none; width: 100%; }
+  .threads-panel { margin-top: 2rem; border-top: 3px solid #747fac; }
+  #messages { max-height: 60vh; }
+  #reader { width: 100%; }
+  #answer-alert { margin-inline: 1rem; }
+}

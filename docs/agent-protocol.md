@@ -13,9 +13,9 @@ The service only binds `127.0.0.1`. `Host` must be `127.0.0.1:PORT` or `localhos
 
 ## Managed active-local-agent lifecycle
 
-For visible real-agent presence and bounded terminal failures, use the [local-agent connection guide](local-agent.md): connect once, heartbeat every 5 seconds, reserve using the returned `session_id`, then post through the unchanged answer endpoint. The optional `node src/local-agent.js` JSONL bridge maintains that loop for an already-running local reasoner; it does not run a model or invent replies.
+For managed real-agent presence and bounded terminal failures, use the [local-agent connection guide](local-agent.md): connect once, heartbeat every 5 seconds, reserve using the returned `session_id`, then post through the unchanged answer endpoint. The optional `node src/local-agent.js` JSONL bridge maintains that loop for an already-running local reasoner; it does not run a model or invent replies.
 
-Managed presence expires after 20 seconds, and managed reservations have a fixed 120-second answering deadline. Disconnect, expiry or service restart terminally fails exact unfinished managed work. Queued unclaimed questions remain saved and explicitly unavailable in the UI. Presence is ephemeral; only one service per database is supported. Legacy reservations below retain their original reclaim behavior and do **not** indicate active presence. Legacy/demo reservation attempts return 409 while a managed worker is connected.
+Managed presence expires after 20 seconds, and managed reservations have a fixed 120-second answering deadline. Disconnect, expiry or service restart terminally fails exact unfinished managed work. Queued unclaimed questions remain saved; interrupted answering produces an actionable reader alert. Healthy presence is invisible in the reader. Presence is ephemeral; only one service per database is supported. Legacy reservations below retain their original reclaim behavior and do **not** indicate active presence. Legacy/demo reservation attempts return 409 while a managed worker is connected.
 
 Managed ownership is recorded by a private `managed` reservation marker. Restart recovery fails only unfinished reservations carrying that marker; it never infers ownership from a worker name. Legacy workers whose names begin with `local-session:`—including `local-session:foo` and `local-session::...`—remain unmarked and retain their normal expiry/reclaim behavior.
 
@@ -77,7 +77,7 @@ curl -s http://127.0.0.1:3210/api/agent/requests/REQUEST_ID/answer \
   -d '{
     "lease_token":"LEASE_TOKEN",
     "status":"answered",
-    "body":"Plain text answer, not HTML.",
+    "body":"Safe **Markdown** answer, not raw HTML.",
     "citations":[{"revision_id":1,"block_id":"BLOCK_ID","quote":"Exact passage."}]
   }'
 ```
@@ -86,13 +86,13 @@ curl -s http://127.0.0.1:3210/api/agent/requests/REQUEST_ID/answer \
 
 First successful terminal result: HTTP 200, `{"duplicate":false,"thread":{...}}`. It creates one agent message, sets the request terminal, and marks the thread unread in the same transaction. Reposting **the same status, body, ordered citation values and token** returns 200 with `duplicate:true`, even after the original lease deadline. A different answer for an already terminal request returns 409. Stale/replaced tokens or an expired, unfinished reservation return 409. An answer from a previous lease never overwrites a new worker's answer.
 
-These are **storage idempotency and exclusive lease semantics**, not exactly-once model execution. Crashes, lost reserve responses, lease expiry, or competing workers can cause duplicate computation. Save retries reuse the identical payload. A lost successful answer response can be retried safely with the same token/payload. Once a request is terminal it is not polled again. To ask again after failure, create a new question/thread; no automatic retry policy chooses a provider.
+These are **storage idempotency and exclusive lease semantics**, not exactly-once model execution. Crashes, lost reserve responses, lease expiry, or competing workers can cause duplicate computation. Save retries reuse the identical payload. A lost successful answer response can be retried safely with the same token/payload. Once a request is terminal it is not polled again. To ask again after failure, create a follow-up turn (below) or a new question/thread; no automatic retry policy chooses a provider.
 
 ## Reader endpoints
 
 - `GET /api/state` → current `revision_id` (or null) plus active/unavailable agent presence; no report content or session handle. Readers poll this for live updates.
 - `GET /api/document` → current revision, sanitized HTML, TOC, block records and source; `null` before import.
-- `POST /api/document` with `{title,source}` → 201 new revision. **Without `operation_key`, every import** creates a revision, even identical source (unchanged v1 semantics). An optional nonempty `operation_key` (at most 100 characters) makes retries durable: the same key and exact title/source/expected-revision payload returns the original revision with the same 201 document shape; different payload under the key returns 409. Reconciliation precedes the current guard check, so lost acknowledgements remain recoverable after later revisions. A new key permits an intentional repeat import. Keys are retained in an additive `import_operations` table; existing SQLite IDs and schema-v2 compatibility remain. Optional `expected_revision_id` (integer, or null before first import) enables atomic compare-and-import: a different current revision returns 409 without writing. Browser manual imports and authorized file observation use this guard.
+- `POST /api/document` with `{title,source}` → 201 new revision. **Without `operation_key`, every import** creates a revision, even identical source (unchanged v1 semantics). An optional nonempty `operation_key` (at most 100 characters) makes retries durable: the same key and exact title/source/expected-revision payload returns the original revision with the same 201 document shape; different payload under the key returns 409. Reconciliation precedes the current guard check, so lost acknowledgements remain recoverable after later revisions. A new key permits an intentional repeat import. Keys are retained in an additive `import_operations` table; existing SQLite IDs and schema-v2 compatibility remain. Optional `expected_revision_id` (integer, or null before first import) enables atomic compare-and-import: a different current revision returns 409 without writing. Authoring workflows use this guard; the reader reflects their imports without asking for file access.
 - `POST /api/questions` with `{revision_id,block_id,quote,question,client_key}` → 201 durable thread, user message and waiting request. `client_key` is reader-generated (UUID recommended). Retrying the same key and exact question payload returns the existing thread; different content under the key returns 409. Old revisions remain valid for old-tab drafts. The initial commit happens before acknowledging “saved”.
 - `GET /api/threads` / `GET /api/threads/THREAD_ID` → original references, exact quote/context, messages/citations, unread/closed flags, `request_status`, attempts/lease deadline and `worker` (including `deterministic-fake-v1` for the demo), `current_revision_id`, and `anchor_status` (`matched` or `needs_review`). There is no deletion or fuzzy remap endpoint.
 - `PATCH /api/threads/THREAD_ID` with boolean `{unread:false}` or `{closed:true}` → updated thread. Closing is reader organization, **not cancellation**; replies still persist and mark it unread.
@@ -127,3 +127,59 @@ clients need not send it. These are accidental cross-scope safeguards, not a new
 authentication boundary. Existing routes, v1 context/citations and JSONL events are
 unchanged. The finite CLI boundary converts its JSON responses to TOON; HTTP and
 JSONL remain JSON and JSONL respectively.
+
+## Additive authoring handoff
+
+`POST /api/document` accepts optional `handoff:{subject,repository,conversation}`:
+three nonempty strings, at most 20,000 characters each, requiring `operation_key`
+and `expected_revision_id`. The handoff participates in the import payload hash
+and the same atomic commit/replay. It is stored by immutable revision in an
+additive `revision_handoffs` table. Existing unkeyed/keyed imports are unchanged.
+The document response remains the existing shape; handoff content is not in
+reader document/state/ambient inspection responses.
+
+`POST /api/agent/connect` accepts optional `presentation` (the complete import
+payload with handoff), **or** `handoff_revision_id` (an already committed handoff).
+Presence conflict is checked before importing. The response adds `handoff` only
+when requested. JSONL `ready` supports the same fields and emits an additive
+`type:"context"` record before `connected` for these handoffs; legacy ready/event
+sequences are unchanged. Every reservation for a supplied revision adds
+`handoff:{revision_id,subject,repository,conversation}`. No filesystem path is
+followed; context from another revision is never substituted. See the
+[full workflow and lifetime contract](local-agent.md#presenting-an-agent-authored-report).
+
+## Additive continuous conversations
+
+V1 `/api/threads`, `/api/questions`, request/answer routes, CLI thread inspection,
+UUIDs, JSONL request events, one-question/one-reply records, size limits and lease
+semantics remain intact. Continuous chat groups those exact turns using the
+additive `conversation_turns` table (child `thread_id`, root `conversation_id`),
+without rebuilding tables, rewriting old records or changing schema version 2.
+All pre-existing threads are singleton conversations automatically.
+
+- `GET /api/conversations` and `GET /api/conversations/ID` return root thread
+  provenance plus chronologically ordered messages from all its turns. `id`,
+  `revision_id`, `quote`, context and anchor status always identify the root;
+  `request_id`, `request_status`, `worker` reflect the latest turn. `unread` is
+  true if any turn is unread. Each message retains its exact `thread_id`, `id`,
+  body/citations and adds its turn's `worker`. Agent messages add safe `html`
+  rendered by the report's Markdown pipeline, without report passage IDs.
+- `POST /api/conversations/ID/questions` with `{question,client_key}` → 201
+  conversation. Creates an ordinary v1 child thread/request using the root's
+  original revision/block/quote/context and links it atomically. A turn must be
+  terminal (`answered` or `failed`) before another can be queued; otherwise 409.
+  The same key/payload/conversation is retry-safe even if its turn is now waiting
+  or already answered. Reusing a key for another conversation or payload is 409.
+  Reader closure is organization, not cancellation or a ban on follow-ups.
+- `PATCH /api/conversations/ID` accepts the same boolean unread/closed fields.
+  Closed applies to the root; unread acknowledgement applies to all current
+  turns atomically. Late replies still mark the conversation unread.
+- Follow-up reservations retain their actual v1 `thread_id` and add
+  `conversation_id` plus `history` (all previous messages with exact original
+  bodies/citations/turn worker, never rendered HTML). The current question is
+  still `question`. Historical report/context is not replaced by a later report.
+  Legacy workers can still answer normally; context-aware workers use history.
+
+Reader chat uses these additive projections. Legacy CLI lists still count and
+inspect individual v1 turns; no existing list semantics change. There is no
+fuzzy regrouping, moving citations, message deletion or provider fallback.

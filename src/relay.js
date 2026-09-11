@@ -28,13 +28,24 @@ export class LocalRelay {
     return { state: this.session ? 'active' : 'unavailable', worker: this.session?.worker ?? null,
       busy: Boolean(this.pending), heartbeat_seconds: 5, expires_seconds: 20 };
   }
-  connect({ worker }) {
+  connect({ worker, handoff_revision_id, presentation }) {
     text(worker, 'worker', 86); // leave room for the persisted local-session: marker
     if (worker === 'deterministic-fake-v1') throw new Problem(400, 'The demo adapter is not an active local agent');
     this.sweep();
     if (this.session) throw new Problem(409, 'A local agent is already connected; disconnect it or wait for its presence to expire');
+    if (presentation !== undefined && handoff_revision_id !== undefined) throw new Problem(400, 'Choose presentation or handoff_revision_id');
+    if (presentation !== undefined) {
+      if (!presentation || !presentation.handoff) throw new Problem(400, 'presentation requires a report and handoff');
+      handoff_revision_id = this.store.importReport(presentation).id;
+    }
+    let handoff;
+    if (handoff_revision_id !== undefined) {
+      if (!Number.isSafeInteger(handoff_revision_id)) throw new Problem(400, 'handoff_revision_id must be an integer');
+      handoff = this.store.handoff(handoff_revision_id);
+      if (!handoff) throw new Problem(404, 'No handoff for this exact revision');
+    }
     this.session = { id: randomUUID(), worker, until: this.now() + 20_000 };
-    return { session_id: this.session.id, ...this.status() };
+    return { session_id: this.session.id, ...this.status(), ...(handoff ? { handoff } : {}) };
   }
   requireSession({ session_id }) {
     this.sweep();

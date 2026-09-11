@@ -130,3 +130,8 @@ export function renderReport(source, previous = []) {
   }));
   return { html, toc, blocks: blocks.map(({ token, ...block }) => block) };
 }
+
+/** Replies use precisely the report's inert Markdown pipeline, without passage IDs. */
+export function renderMarkdown(source) {
+  return safeHtml(md.render(source));
+}

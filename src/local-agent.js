@@ -41,8 +41,9 @@ export async function runLocalAgent({ base = 'http://127.0.0.1:3210', input = pr
         if (!value || typeof value !== 'object') throw new Error('Expected a JSON object');
         if (!session) {
           if (value.type !== 'ready') throw new Error('Send ready only when a local agent is available to answer');
-          const connected = await post('/api/agent/connect', { worker: value.worker });
+          const connected = await post('/api/agent/connect', { worker: value.worker, presentation: value.presentation, handoff_revision_id: value.handoff_revision_id });
           session = { session_id: connected.session_id };
+          if (connected.handoff) emit({ type: 'context', handoff: connected.handoff });
           emit({ type: 'connected', worker: connected.worker });
           poll();
           timer = setInterval(poll, interval);

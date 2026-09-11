@@ -1,6 +1,6 @@
 # Sillage AXI
 
-A small **local-only Markdown report reader** with temporary question bubbles and durable passage conversations. One reader, one PC, one report with multiple revisions. Sillage AXI uses **no external AI provider**, telemetry, accounts, or cloud services.
+A small **local-only Markdown report reader** with a passage-linked conversation panel and durable history. One reader, one PC, one report with multiple revisions. Sillage AXI uses **no external AI provider**, telemetry, accounts, or cloud services.
 
 ## Run
 
@@ -11,7 +11,7 @@ npm ci --ignore-scripts
 npm start
 ```
 
-Open **http://127.0.0.1:3210**. Import `examples/report.md`, choose another UTF-8 Markdown file, or paste Markdown. Installing dependencies needs a registry connection once; running the app, fake agent, and tests afterward needs **no internet or secrets**. There are no CDN assets or external image requests.
+The workflow that authored the report supplies its Markdown and attaches its local respondent before opening **http://127.0.0.1:3210**. The reader needs no import or connection setup. For a standalone fixture, use the explicit CLI import below with `examples/report.md`. Installing dependencies needs a registry connection once; running the app, fake agent, and tests afterward needs **no internet or secrets**. There are no CDN assets or external image requests.
 
 For a separate deterministic transport demo, answer **one** queued question in another terminal while no managed agent is connected:
 
@@ -142,19 +142,35 @@ discovery/safety text used by the CLI, so the skill has one source of instructio
 
 ### Using a real local agent
 
-The header shows **Local agent · unavailable** until an already-running, fully local agent explicitly connects. Questions remain saved in the queue, with a visible connection path rather than a silent wait. Select the indicator or **Connect local agent** in a waiting bubble for setup. **No model is bundled or launched by Sillage AXI.** Do not connect a cloud-backed assistant.
+When asked to present its report with Sillage, the **authoring agent owns the handoff**:
+it supplies the report and the context it already has (subject, repository notes,
+and prior conversation), then maintains an answering loop itself or delegates to an
+already-running local-only subagent. The reader never has to reconstruct that context.
+This is generic to any agent-authored report, not a particular benchmark or repository.
 
-Use the [Sillage AXI agent skill](skills/sillage/SKILL.md) and [local-agent connection guide](docs/local-agent.md). An existing local agent can use the managed HTTP lifecycle directly, or attach to the explicit JSONL bridge:
+The [handoff contract](docs/local-agent.md#presenting-an-agent-authored-report) supports
+an atomic import plus readiness handshake, or a durable import followed by attachment
+of a subagent to that exact revision. No arbitrary filesystem reads, transcript capture,
+provider selection or inference is added. **Do not connect a cloud-backed assistant.**
+Sillage does not bundle or launch a reasoner. The workflow must keep the local reasoner
+and its streams alive after opening the reader; merely starting a bridge is not enough.
+
+An existing local agent uses the managed HTTP lifecycle directly or owns this JSONL bridge:
 
 ```sh
 node src/local-agent.js
-# Or, for a nondefault loopback port:
+# Nondefault loopback port:
 SILLAGE_URL=http://127.0.0.1:3211 node src/local-agent.js
 ```
 
-Use Node directly for machine attachment: npm's normal script banner can pollute the JSONL stdout stream. Attach stdin/stdout separately from stderr.
-
-The bridge is **not AI**: it stays unavailable until the attached reasoner declares readiness, then relays queued requests and stores that reasoner's actual cited replies. It runs continuously, maintains heartbeats and supports clean disconnect via EOF or a stop message. Lost presence or a 120-second answering deadline produces an explicit terminal failure, not a fabricated answer. Unclaimed questions stay queued. The separate `fake-agent` command never advertises active-agent presence and cannot take work while a real managed worker is connected. See the [v1 local agent protocol](docs/agent-protocol.md) for provenance, citations and idempotency.
+Use Node directly for machine attachment; keep stderr separate from JSONL stdout.
+The bridge polls continuously and maintains heartbeats after the workflow's ready
+handshake. Normal listening is invisible in the reader. Lost presence, a failed reply,
+or the 120-second deadline produces an actionable alert and retains the saved question.
+Return to the original authoring conversation to resume answering, then send a follow-up
+if a turn already failed. Unclaimed questions stay queued. The separate demo command
+never advertises managed presence; its supplied replies remain labeled **not AI**.
+See the [v1 protocol](docs/agent-protocol.md) for leases, citations and idempotency.
 
 ### Local configuration
 
@@ -167,29 +183,40 @@ The default durable store is `.data/sillage.sqlite` relative to the working dire
 
 ## Walkthrough
 
-1. Import `examples/report.md`. The documentation layout and Contents links are generated by Markdown-it. Headings, paragraphs, list items, block quotes, code blocks, and tables are focusable, addressable passages.
-2. Click the “Deployment remains local…” paragraph, or select `127.0.0.1` within it. Type “What does local-only mean here?” and **Ask question**. The bubble immediately shows **Saved locally / waiting**, including whether a local agent is active or unavailable, after the SQLite commit, without replacing the report or scrolling it. Close with × or Escape; the saved thread remains in **Threads**. This compact title/topic list is hidden by default; its header toggle shows unread and review counts. Unsent drafts are not durable and require confirmation to discard.
-3. Connect your local agent using the guide above. Within the two-second polling interval, its terminal answer and exact revision/block citation appear. For a separate deterministic transport demo only, leave the agent disconnected and run `npm run fake-agent`; this is labeled **demo result — not an AI answer**. Close and reopen the thread to jump back to its source and mark its reply read. “Close thread” archives the conversation; it does not delete it or cancel an agent request. The All threads filter includes closed threads.
-4. Stop and restart `npm start`. The bubble itself is gone, but the thread, quote, reply, citation, and original snapshot remain. Reopen it from Threads.
-5. Import `examples/report-changed.md` **as a new revision of the same report**. The original deployment paragraph has changed. Its thread now says **passage to review**, retains the original quote and answer, and offers its original source snapshot instead of jumping to a different passage. Unmatched threads stay in the compact list even when closed. The unchanged “The review checklist…” paragraph can retain its identity.
+1. Ask the local agent that produced your report to present it with Sillage. It supplies the report/context and starts listening before opening the reader. Contents on the left is collapsible; the report stays central and chat has its own panel on the right.
+2. Click a passage (or focus it and press Enter), or select part of a paragraph across inline formatting. A short quote narrows the question without losing the full passage, neighbors or original revision. Send **Ask question**: the durable question appears in chat without moving the report. Close an unsent draft with × or Escape directly, with no confirmation.
+3. The agent's reply appears as safe Markdown. Choose another thread from the one-line dropdown, or **Send message** to continue the active conversation once its current turn finishes. Follow-ups retain the original quote and carry the prior turns to the respondent. **Go to passage** is explicit navigation, never a silent scroll or report replacement.
+4. Restart the same service/database: reports, conversation turns, citations, unread state and original snapshots remain. A local draft is temporary; saved conversations are not. Closing a thread is organization, not deletion or cancellation; it remains selectable.
+5. The authoring workflow can publish a guarded new revision through the same API/CLI. Changed or ambiguous passages say **Passage to review** and retain their original snapshot, rather than linking to similar-looking text. A follow-up still refers to that original revision. To discuss new wording, start a question on the new passage.
 
-This prototype keeps one question and one final reply per thread. Ask another question to create another thread. No automatic editing, follow-up chat, manual reattachment, or report switching is implemented. Importing an unrelated file is still a new revision of the one report.
+The existing v1 one-question/one-reply threads remain intact as individual turns.
+An additive conversation grouping powers continuous chat; existing CLI thread inspection
+can still inspect each turn independently. There is no provider-driven auto-editing or
+report switching. Any revision must come from the authorized authoring workflow.
 
 ## Live report updates
 
-All open readers check the local service every two seconds and automatically display authorized imports, **even with no threads yet**. There is no reload button or WebSocket. An unchanged poll does not rebuild the report. A safe semantic reading anchor keeps its viewport offset; if none survives, the approximate scroll position is kept and that limitation is announced. Open discussions and unsent drafts keep their original revision/quote. Changed or ambiguous context is explicitly marked **Passage to review**, never moved to similar-looking text. Drafts can still be asked against their original revision.
+Open readers check the local service every two seconds and display workflow imports,
+**even with no conversations yet**. No reload button or WebSocket is required. Unchanged
+polls do not rebuild the report. A safe semantic reading anchor keeps its viewport offset;
+otherwise approximate scroll position is retained with a notice. Open chats and drafts
+keep their exact original revision and quote; changed or ambiguous context is never remapped.
 
-An ordinary browser file input is a **snapshot**, not a disk watcher. In a browser supporting `showOpenFilePicker` on loopback, use **Import / new revision → Connect file for live updates…** after importing. Explicitly select that same file; its bytes must match the current report before connecting. The tab holds a read-only file handle in memory and checks its contents every two seconds. Changed bytes create a guarded new revision; unchanged bytes do not. No filesystem path or arbitrary file endpoint is sent to the service.
+The reader does not request disk access or observe browser file inputs. The authoring
+workflow already owns its report file/context capability and explicitly sends changed
+Markdown through `POST /api/document` (or the compatible keyed CLI import). Use a new
+operation key and the current expected revision for each intentional update; retry an
+uncertain acknowledgement with the identical payload/key. A conflict must be inspected,
+not overwritten. Include updated handoff context with each workflow revision when needed;
+Sillage never guesses context or reads a path mentioned in it. Readers reflect authorized
+imports automatically; polling is not a claim that Sillage watches arbitrary files.
 
-**Stop file updates** revokes this tab's observation (not a revision already in flight). Permission loss, oversized/invalid content, or another import pauses file updates visibly. A compare-and-import guard prevents overwriting a concurrent revision. Review the report and reconnect explicitly. Reloading/closing the tab forgets the capability; background tabs may be browser-throttled. Editors that replace or move the underlying file can invalidate the handle, requiring reconnection.
-
-If the browser lacks that explicit capability, reselect the edited file and **Import revision**, or have an independently authorized local workflow POST its Markdown through the existing relay. Other open readers still update automatically. Sillage AXI does not pretend that polling the old file-input snapshot observes disk changes.
-
-UTF-8 French Markdown is supported without translation or a second-report feature. A supplied French revision can be imported later; Delta-content translation and any Yuba changes are outside this repository.
+UTF-8 French Markdown is supported without translation or a second-report feature.
+Yuba, Lavish and any other report-authoring repository remain independent and unchanged.
 
 ## Visual direction
 
-**Material Darker Air** is the one implemented direction: anthracite/slate surfaces, restrained indigo, airy hierarchy and spacing, a wider canvas for code/tables, and prose capped at 76ch. Threads are a compact optional panel (stacked on narrower screens). The small locally bundled Sillage AXI mark uses no remote asset or font. **Plum & Amber** remains a documented future alternative only, not a second theme or switch.
+**Material Darker Air** is the one implemented direction: anthracite/slate surfaces, restrained indigo, airy hierarchy and spacing, a wider canvas for code/tables, and prose capped at 76ch. Chat is visually separated on the right, stacked below the report on narrow screens with a header link for direct access. Contents can be collapsed to free reading space. The small locally bundled Sillage AXI mark uses no remote asset or font. **Plum & Amber** remains a documented future alternative only, not a second theme or switch.
 
 ### Standalone icon proposals
 
@@ -207,12 +234,12 @@ Changed, deleted, split, merged, or ambiguous blocks get fresh IDs. Unmatched th
 
 ## Safety and extension points
 
-- **Rendering:** Markdown-it with raw HTML disabled, then a strict sanitize-html allowlist. Agent replies/questions/citations use DOM `textContent`, never HTML. Images are explicit text placeholders, not network fetches. Relative file links are inert; generated Contents links work. Raw HTML, SVG, and arbitrary embeds do not execute.
+- **Rendering:** Markdown-it with raw HTML disabled, then a strict sanitize-html allowlist. Agent replies use the same Markdown-it and sanitize-html pipeline, without report passage IDs. Questions and citation quotes use DOM `textContent`. Images are explicit text placeholders, not network fetches. Relative file links are inert; generated Contents links work. Raw HTML, SVG, and arbitrary embeds do not execute.
 - **Local boundary:** hard-bound to IPv4 loopback, strict Host/Origin checks, no CORS, JSON plus a required custom write header, restrictive CSP, and no filesystem-serving endpoint. Other processes running as the local user can access the API; this is not an authentication or hostile-machine sandbox. Do not reverse-proxy or expose it to a LAN/public interface.
 - **Storage/protocol:** `src/store.js` owns SQLite transactions, snapshots, idempotency and leases; `src/relay.js` owns the managed local-agent lifecycle; and `src/server.js` exposes the local HTTP boundary. See [the v1 agent protocol](docs/agent-protocol.md) before writing an adapter. Full document text is supplied locally to a reserved worker; adopting any external provider needs a separate privacy decision.
 - **Agent trust:** report Markdown, questions, and agent replies are data, not executable instructions or permission to modify a project. Preserve the original revision and passage references; never silently move a thread to regenerated text. Do not put secrets in reports, questions, replies, or citations.
 - **Diagrams:** an `excalidraw` code fence becomes an explicit **Unsupported diagram · Excalidraw** figure with preserved, escaped source. The extension points are `codeRenderer` in `src/render.js` and `[data-diagram="excalidraw"]` in the reader. A future read-only, locally bundled established Excalidraw-compatible component can consume validated scene JSON there. It must preserve the enclosing block identity, bound scene complexity, and prevent remote images/fonts/links from auto-loading. No custom diagram editor or unsafe SVG/HTML fallback is included.
 - **UI:** plain JavaScript/CSS, Material Darker Air palette; no build, WebSockets, streaming, shell execution, vector search, or provider SDK.
-- **Limits:** 1,000,000 source characters / 20,000 lines / 5,000 passages per import, 2 MB API payloads, 4,000-character questions, 2,000-character UI selections. The local prototype migrates schema v1 to v2 for the managed reservation marker and refuses unknown future schema versions; later migrations and resource isolation for very large/malicious documents are out of scope.
+- **Limits:** 1,000,000 source characters / 20,000 lines / 5,000 passages per import, 2 MB API payloads, 4,000-character questions, 2,000-character UI selections. The local prototype migrates schema v1 to v2 for the managed reservation marker and refuses unknown future schema versions; handoffs and conversation groups use additive tables without changing v1 records or schema version. Resource isolation for very large/malicious documents remains out of scope.
 
 See [acceptance evidence](docs/acceptance.md) for commands, observed results, and validation limitations. The repository is [nicolascrop/sillage-axi](https://github.com/nicolascrop/sillage-axi).

@@ -82,10 +82,15 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now, scopeRoot = pr
       if (req.method === 'GET' && path === '/api/state') return send(200, { revision_id: store.revisionId(), agent: relay.status() });
       if (req.method === 'GET' && path === '/api/document') return send(200, store.current());
       if (req.method === 'GET' && path === '/api/threads') return send(200, store.threads());
+      if (req.method === 'GET' && path === '/api/conversations') return send(200, store.conversations());
+      const conversationPath = path.match(/^\/api\/conversations\/([a-f0-9-]+)(\/questions)?$/);
+      if (req.method === 'GET' && conversationPath && !conversationPath[2]) return send(200, store.conversation(conversationPath[1]));
       const threadPath = path.match(/^\/api\/threads\/([a-f0-9-]+)$/);
       if (req.method === 'GET' && threadPath) return send(200, store.thread(threadPath[1]));
       if (!['POST', 'PATCH'].includes(req.method)) throw new Problem(404, 'Route not found');
       const input = await jsonBody(req);
+      if (conversationPath && req.method === 'POST' && conversationPath[2]) return send(201, store.followup(conversationPath[1], input));
+      if (conversationPath && req.method === 'PATCH' && !conversationPath[2]) return send(200, store.updateConversation(conversationPath[1], input));
       if (req.method === 'POST' && path === '/api/document') return send(201, store.importReport(input));
       if (req.method === 'POST' && path === '/api/questions') return send(201, store.question(input));
       if (req.method === 'PATCH' && threadPath) return send(200, store.updateThread(threadPath[1], input));

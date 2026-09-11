@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { renderReport } from './render.js';
+import { renderReport, renderMarkdown } from './render.js';
 
 export class Problem extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -44,6 +44,14 @@ export class Store {
         operation_key TEXT PRIMARY KEY, payload_hash TEXT NOT NULL,
         revision_id INTEGER NOT NULL REFERENCES revisions(id)
       );
+      CREATE TABLE IF NOT EXISTS revision_handoffs (
+        revision_id INTEGER PRIMARY KEY REFERENCES revisions(id), context TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS conversation_turns (
+        thread_id TEXT PRIMARY KEY REFERENCES threads(id),
+        conversation_id TEXT NOT NULL REFERENCES threads(id)
+      );
+      CREATE INDEX IF NOT EXISTS conversation_history ON conversation_turns(conversation_id);
       CREATE TABLE IF NOT EXISTS blocks (
         revision_id INTEGER NOT NULL REFERENCES revisions(id), id TEXT NOT NULL,
         ordinal INTEGER NOT NULL, kind TEXT NOT NULL, source TEXT NOT NULL, text TEXT NOT NULL,
@@ -94,10 +102,19 @@ export class Store {
     requireValue(row, 404, 'Revision not found');
     return { ...row, toc: JSON.parse(row.toc), blocks: this.blocks(row.id) };
   }
-  importReport({ title, source, expected_revision_id, operation_key }) {
+  importReport({ title, source, expected_revision_id, operation_key, handoff }) {
     text(title, 'title', 200); text(source, 'source', 1_000_000);
     if (operation_key !== undefined) text(operation_key, 'operation_key', 100);
-    const payloadHash = digest({ title, source, expected_revision_id });
+    if (handoff !== undefined) {
+      requireValue(handoff && typeof handoff === 'object' && !Array.isArray(handoff) &&
+        Object.keys(handoff).length === 3 && ['subject', 'repository', 'conversation'].every(key => key in handoff),
+      400, 'handoff requires subject, repository and conversation text only');
+      handoff = Object.fromEntries(['subject', 'repository', 'conversation'].map(key =>
+        [key, text(handoff[key], `handoff ${key}`, 20_000)]));
+      requireValue(operation_key !== undefined && expected_revision_id !== undefined, 400,
+        'A handoff requires an operation_key and expected_revision_id');
+    }
+    const payloadHash = digest({ title, source, expected_revision_id, handoff });
     requireValue(source.split('\n').length <= 20_000, 400, 'Report exceeds 20,000 lines');
     return this.transaction(() => {
       // Reconcile a committed operation before checking today's revision guard.
@@ -124,8 +141,14 @@ export class Store {
       if (operation_key !== undefined) this.db.prepare(
         'INSERT INTO import_operations(operation_key,payload_hash,revision_id) VALUES(?,?,?)'
       ).run(operation_key, payloadHash, revision);
+      if (handoff !== undefined) this.db.prepare('INSERT INTO revision_handoffs(revision_id,context) VALUES(?,?)')
+        .run(revision, JSON.stringify(handoff));
       return this.current();
     });
+  }
+  handoff(revision) {
+    const row = this.db.prepare('SELECT context FROM revision_handoffs WHERE revision_id=?').get(revision);
+    return row ? { revision_id: revision, ...JSON.parse(row.context) } : null;
   }
   thread(id) {
     const thread = this.db.prepare(`SELECT t.*, r.id AS request_id, r.status AS request_status,
@@ -144,17 +167,56 @@ export class Store {
     return this.db.prepare('SELECT id FROM threads ORDER BY created_at DESC, rowid DESC').all()
       .map(({ id }) => this.thread(id));
   }
-  question(input) {
+  conversationId(id) {
+    return this.db.prepare('SELECT conversation_id FROM conversation_turns WHERE thread_id=?').get(id)?.conversation_id ?? id;
+  }
+  conversation(id) {
+    const root = this.thread(this.conversationId(id));
+    const turns = [root, ...this.db.prepare('SELECT thread_id FROM conversation_turns WHERE conversation_id=? ORDER BY rowid')
+      .all(root.id).map(row => this.thread(row.thread_id))];
+    const latest = turns.at(-1);
+    return { ...root, request_id: latest.request_id, request_status: latest.request_status,
+      worker: latest.worker, unread: turns.some(turn => turn.unread) ? 1 : 0,
+      messages: turns.flatMap(turn => turn.messages.map(message => ({ ...message, worker: turn.worker,
+        ...(message.role === 'agent' ? { html: renderMarkdown(message.body) } : {}) }))) };
+  }
+  conversations() {
+    return this.db.prepare('SELECT id FROM threads WHERE id NOT IN (SELECT thread_id FROM conversation_turns) ORDER BY created_at DESC,rowid DESC')
+      .all().map(row => this.conversation(row.id));
+  }
+  updateConversation(id, input) {
+    return this.transaction(() => {
+      const root = this.conversationId(id);
+      this.updateThread(root, input);
+      // Reading a conversation acknowledges all turns, including late replies.
+      if ('unread' in input) for (const row of this.db.prepare('SELECT thread_id FROM conversation_turns WHERE conversation_id=?').all(root)) {
+        this.updateThread(row.thread_id, { unread: input.unread });
+      }
+      return this.conversation(root);
+    });
+  }
+  followup(id, { question, client_key }) {
+    const root = this.thread(this.conversationId(id));
+    this.question({ revision_id: root.revision_id, block_id: root.block_id, quote: root.quote,
+      question, client_key }, root.id);
+    return this.conversation(root.id);
+  }
+  question(input, conversationId) {
     const { revision_id, block_id, quote, question, client_key } = input;
     text(block_id, 'block_id', 100); text(quote, 'quote', 20_000);
     text(question, 'question', 4000); text(client_key, 'client_key', 100);
     requireValue(Number.isSafeInteger(revision_id), 400, 'revision_id must be an integer');
-    const payloadHash = digest({ revision_id, block_id, quote, question });
+    const payloadHash = digest({ revision_id, block_id, quote, question, conversation_id: conversationId });
     return this.transaction(() => {
       const duplicate = this.db.prepare('SELECT * FROM requests WHERE client_key=?').get(client_key);
       if (duplicate) {
         requireValue(duplicate.payload_hash === payloadHash, 409, 'client_key reused with different question');
         return this.thread(duplicate.thread_id);
+      }
+      if (conversationId) {
+        const conversation = this.conversation(conversationId);
+        requireValue(['answered', 'failed'].includes(conversation.request_status), 409,
+          'Wait for the current reply before sending another message');
       }
       const blocks = this.blocks(revision_id);
       const block = blocks.find(b => b.id === block_id);
@@ -170,6 +232,8 @@ export class Store {
         VALUES(?,?,?,?,'waiting',?)`).run(randomUUID(), threadId, client_key, payloadHash, now);
       this.db.prepare(`INSERT INTO messages(id,thread_id,role,body,status,created_at)
         VALUES(?,?,'user',?,'saved',?)`).run(randomUUID(), threadId, question, now);
+      if (conversationId) this.db.prepare('INSERT INTO conversation_turns(thread_id,conversation_id) VALUES(?,?)')
+        .run(threadId, conversationId);
       return this.thread(threadId);
     });
   }
@@ -199,7 +263,12 @@ export class Store {
       const thread = this.thread(request.thread_id);
       const document = this.db.prepare('SELECT id,title,source,created_at FROM revisions WHERE id=?')
         .get(thread.revision_id);
-      return { protocol: 'sillage-agent-v1', request_id: request.id, lease_token: token,
+      const handoff = this.handoff(document.id);
+      const conversationId = this.conversationId(thread.id);
+      const history = conversationId === thread.id ? null : this.conversation(conversationId).messages
+        .filter(message => message.thread_id !== thread.id)
+        .map(({ html, ...message }) => message);
+      return { ...(handoff ? { handoff } : {}), ...(history ? { conversation_id: conversationId, history } : {}), protocol: 'sillage-agent-v1', request_id: request.id, lease_token: token,
         lease_until: until, attempt: request.attempts + 1, thread_id: thread.id,
         document, block: thread.context.block, quote: thread.quote, context: thread.context,
         question: thread.messages[0].body, anchor_status: thread.anchor_status };
