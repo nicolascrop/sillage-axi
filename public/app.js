@@ -39,6 +39,9 @@ function node(tag, text, className) {
   if (className) element.className = className;
   return element;
 }
+function setText(id, text) {
+  if ($(id).textContent !== text) $(id).textContent = text;
+}
 function passageElement(id) { return document.getElementById(`b-${id}`); }
 function nearestPassage(element) {
   return (element?.nodeType === 1 ? element : element?.parentElement)?.closest('[data-block-id]');
@@ -146,6 +149,25 @@ function drawAgent(value) {
     : failed ? 'A reply could not be completed. Select the affected thread for the explanation, then send a follow-up to try again.' : '';
   if ($('answer-alert').hidden !== hidden) $('answer-alert').hidden = hidden;
   if ($('answer-alert').textContent !== message) $('answer-alert').textContent = message;
+  drawActivity();
+}
+function drawActivity() {
+  const thread = threads.find(t => t.id === activeThread);
+  if (!thread) return;
+  const paused = agent.state !== 'active';
+  const status = thread.request_status;
+  const recovery = 'Return to the conversation that presented this report to resume answering.';
+  const text = status === 'waiting' ? paused ? 'Question saved · waiting to resume' : 'Question saved · waiting for the agent'
+    : status === 'reserved' ? 'Agent is replying'
+      : status === 'failed' ? 'Reply failed · question saved' : 'Reply saved';
+  const next = status === 'waiting' ? paused ? `${recovery} This question stays queued.` : 'You can draft a follow-up while you wait.'
+    : status === 'reserved' ? 'You can draft now; send when the reply finishes.'
+      : status === 'failed' ? paused ? `${recovery} Then send a follow-up to try again.` : 'See the explanation above. Send a follow-up to try again.'
+        : 'Ask a follow-up, or select another report passage for a new conversation.';
+  setText('chat-status', text);
+  setText('chat-next', next);
+  const tone = status === 'failed' || (status === 'waiting' && paused) ? 'attention' : status;
+  if ($('chat-status').dataset.state !== tone) $('chat-status').dataset.state = tone;
 }
 function labels(thread) {
   return [thread.closed ? 'closed' : '', thread.unread ? 'unread' : '',
@@ -202,6 +224,7 @@ function renderThreads() {
   $('thread-select').value = activeThread || '';
   $('chat-empty').hidden = Boolean(activeThread);
   $('chat').hidden = !activeThread;
+  $('conversation-actions').hidden = !activeThread;
   if (!activeThread) $('conversation-state').hidden = true;
   highlightPassages();
   drawThread();
@@ -280,21 +303,36 @@ function drawThread() {
   $('chat-anchor').classList.toggle('review', thread.anchor_status === 'needs_review');
   $('chat-quote').textContent = readableQuote(thread.quote, thread.context.block);
   $('chat-quote').lang = thread.language || '';
+  $('context-label').textContent = `Passage · revision ${thread.revision_id}`;
+  $('context-preview').textContent = compact(readableQuote(thread.quote, thread.context.block), 100);
+  $('context-preview').lang = thread.language || '';
   $('snapshot-text').lang = thread.language || '';
-  $('chat-status').textContent = thread.request_status === 'waiting' ? 'Saved · waiting for a reply'
-    : thread.request_status === 'reserved' ? 'Saved · preparing a reply'
-      : thread.request_status === 'failed' ? 'Reply failed · your question is saved' : 'Saved · answered';
   const log = $('messages');
+  const sameConversation = log.dataset.conversationId === thread.id;
   const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-  const lastMessageId = log.lastElementChild?.dataset.messageId;
-  const previousEnd = thread.messages.findIndex(message => message.id === lastMessageId);
-  const oldScroll = log.scrollTop;
-  log.replaceChildren(...thread.messages.map(message => {
+  const lastMessage = sameConversation ? log.lastElementChild : null;
+  const previousEnd = thread.messages.findIndex(message => message.id === lastMessage?.dataset.messageId);
+  const rect = lastMessage?.getBoundingClientRect();
+  const headerBottom = document.querySelector('.site-header').getBoundingClientRect().bottom;
+  const readingLatest = rect && rect.bottom > headerBottom && rect.top < innerHeight;
+  if (!sameConversation) {
+    log.replaceChildren();
+    log.dataset.conversationId = thread.id;
+    log.scrollTop = 0;
+    $('latest-reply').hidden = true;
+  }
+  // Saved turns are immutable. Append only new messages so expanded citations,
+  // table positions, focus and assistive-technology history survive polling.
+  for (const message of thread.messages.slice(previousEnd + 1)) {
     const item = node('section', undefined, `message ${message.role}`);
     item.dataset.messageId = message.id;
+    item.tabIndex = -1;
+    item.classList.toggle('failed', message.status === 'failed');
     const demo = message.worker === 'deterministic-fake-v1';
-    item.append(node('strong', message.role === 'user' ? 'You' : demo ? 'Demo adapter · not AI'
-      : message.status === 'failed' ? 'Reply could not be completed' : 'Agent'));
+    const heading = node('header', undefined, 'message-heading');
+    heading.append(node('strong', message.role === 'user' ? 'You' : demo ? 'Demo adapter · not AI' : 'Agent'));
+    heading.append(node('span', message.role === 'user' ? 'Question' : message.status === 'failed' ? 'Reply failed' : 'Reply', 'muted'));
+    item.append(heading);
     if (message.role === 'agent') {
       const body = node('div', undefined, 'markdown');
       // Same server-side safe renderer as the report. Questions/quotes stay literal.
@@ -302,29 +340,34 @@ function drawThread() {
       enhanceTables(body, 'Response table');
       item.append(body);
     } else item.append(node('p', message.body));
-    for (const citation of message.citations) {
+    for (const [index, citation] of message.citations.entries()) {
       const block = citation.block_id === thread.block_id ? thread.context.block : null;
       const citationDetails = node('details', undefined, 'citation-details');
       const link = node('button', `Go to cited passage · revision ${citation.revision_id}`, 'citation');
       const quote = node('blockquote', readableQuote(citation.quote, block));
       if (citation.revision_id === thread.revision_id) quote.lang = thread.language || '';
-      citationDetails.append(node('summary', 'Citation'), quote);
+      citationDetails.append(node('summary', `Source ${index + 1} · revision ${citation.revision_id}`), quote);
       link.type = 'button';
       link.addEventListener('click', () => {
         const target = passageElement(citation.block_id);
-        if (target) target.scrollIntoView({ block: 'center' });
+        if (target) { target.scrollIntoView({ block: 'center' }); target.focus({ preventScroll: true }); }
         else notice(`Historical citation (revision ${citation.revision_id}); no current match. Exact quote is preserved in the conversation.`);
       });
       citationDetails.append(link);
       item.append(citationDetails);
     }
-    return item;
-  }));
-  log.scrollTop = oldScroll;
-  // Reveal the start of a new answer, not only its tail; never scroll the report.
+    log.append(item);
+  }
+  // Wide chat owns its scroll. In page-scrolling layouts, only follow an answer
+  // when its preceding turn is on screen; never pull a reader out of the report.
   const newAnswer = thread.messages.findIndex((message, index) => index > previousEnd && message.role === 'agent');
-  if (atEnd && previousEnd >= 0 && newAnswer >= 0) {
-    revealMessage(log.children[newAnswer]);
+  if (sameConversation && previousEnd >= 0 && newAnswer >= 0) {
+    const inspectingHistory = log.contains(document.activeElement) && document.activeElement !== log
+      && !lastMessage?.contains(document.activeElement);
+    const followingPage = readingLatest && !bubble && !$('reader').contains(document.activeElement);
+    const reveal = !inspectingHistory && (usesPageScroll() ? followingPage : atEnd);
+    if (reveal) revealMessage(log.children[newAnswer]);
+    $('latest-reply').hidden = Boolean(reveal);
   }
   $('go-source').hidden = thread.anchor_status !== 'matched' || !passageElement(thread.block_id);
   $('mark-read').hidden = !thread.unread;
@@ -338,25 +381,28 @@ function drawComposer() {
   const thread = threads.find(t => t.id === activeThread);
   const busy = ['waiting', 'reserved'].includes(thread?.request_status);
   $('followup').value = draft?.text || '';
-  $('followup').disabled = Boolean(draft?.payload) || busy;
+  $('followup').disabled = Boolean(draft?.payload);
   $('followup-submit').disabled = Boolean(draft?.saving) || (busy && !draft?.payload);
   $('followup-submit').textContent = draft?.payload && !draft.saving ? 'Retry message' : 'Send message';
-  $('followup-status').textContent = draft?.error || (draft?.saving ? 'Saving…' : busy ? 'You can continue when this reply finishes.' : '');
+  setText('followup-status', draft?.error || (draft?.saving ? 'Saving…' : ''));
+}
+function usesPageScroll() {
+  const style = getComputedStyle($('messages'));
+  return innerWidth <= 700 || innerHeight <= 800 || (style.overflowY || style.overflow) === 'visible';
 }
 function revealMessage(element) {
   const log = $('messages');
   if (!element) return;
-  const overflow = getComputedStyle(log).overflowY || getComputedStyle(log).overflow;
-  const usesPageScroll = innerWidth <= 700 || innerHeight <= 650 || overflow === 'visible';
-  if (usesPageScroll) element.scrollIntoView({ block: 'start' });
+  if (usesPageScroll()) element.scrollIntoView({ block: 'start' });
   else log.scrollTop = element.offsetTop - log.firstElementChild.offsetTop;
 }
 async function selectThread(id, markRead = true) {
-  if (activeThread !== id) { $('context-details').open = false; $('snapshot').open = false; }
+  if (activeThread !== id) { $('context-details').open = false; $('snapshot').open = false; $('conversation-actions').open = false; }
   activeThread = id;
   drawnThread = null;
   renderThreads();
   revealMessage($('messages').querySelector('.message.agent:last-of-type') || $('messages').lastElementChild);
+  $('latest-reply').hidden = true;
   if (markRead && threads.find(t => t.id === id)?.unread) {
     try { await api(`/api/conversations/${id}`, { unread: false }, 'PATCH'); await refreshThreads(); }
     catch (error) { notice(error.message); }
@@ -493,6 +539,18 @@ $('question-form').addEventListener('submit', async event => {
     quote: current.quote, question: $('question').value, client_key: current.clientKey };
   await saveQuestion(current, selectedThread);
 });
+$('latest-reply').addEventListener('click', () => {
+  const reply = $('messages').querySelector('.message.agent:last-of-type');
+  revealMessage(reply);
+  reply?.focus({ preventScroll: true });
+  $('latest-reply').hidden = true;
+});
+$('followup').addEventListener('keydown', event => {
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) {
+    event.preventDefault();
+    if (!$('followup-submit').disabled) $('followup-form').requestSubmit();
+  }
+});
 $('followup').addEventListener('input', () => {
   const draft = drafts.get(activeThread) || { clientKey: crypto.randomUUID() };
   if (!draft.payload) { draft.text = $('followup').value; drafts.set(activeThread, draft); }
@@ -527,7 +585,11 @@ window.visualViewport?.addEventListener('scroll', () => { if (bubble) placeBubbl
 $('thread-select').addEventListener('change', () => selectThread($('thread-select').value));
 $('go-source').addEventListener('click', () => {
   const thread = threads.find(t => t.id === activeThread);
-  if (thread?.anchor_status === 'matched') passageElement(thread.block_id)?.scrollIntoView({ block: 'center' });
+  if (thread?.anchor_status === 'matched') {
+    const target = passageElement(thread.block_id);
+    target?.scrollIntoView({ block: 'center' });
+    target?.focus({ preventScroll: true });
+  }
 });
 for (const [button, field] of [['mark-read', 'unread'], ['close-thread', 'closed']]) {
   $(button).addEventListener('click', async () => {

@@ -496,12 +496,15 @@ test('question placement uses actual bubble height and the visible viewport', as
   assert.equal(ui.window.document.activeElement, ui.$('question'));
 });
 
-test('narrow answer arrival reveals its beginning through page scrolling', async t => {
+test('narrow answer arrival reveals its beginning when the reader is viewing the latest turn', async t => {
   const app = await service(t);
   const thread = app.store.question(questionInput(app.store.current(), { quote: 'quoted', question: 'Why?' }));
   const session = app.relay.connect({ worker: 'original-author' });
   const ui = await reader(app.origin, window => {
     window.innerWidth = 390;
+    window.HTMLElement.prototype.getBoundingClientRect = function () {
+      return this.classList.contains('message') ? { top: 200, bottom: 300 } : { top: 0, bottom: 80 };
+    };
     window.HTMLElement.prototype.scrollIntoView = function () {
       window.lastRevealedMessage = this.dataset.messageId;
     };
@@ -516,11 +519,15 @@ test('narrow answer arrival reveals its beginning through page scrolling', async
   app.relay.disconnect(session);
 });
 
-test('narrow question save keeps the report passage in place until an answer arrives', async t => {
+test('narrow question and answer saves leave report reading in place until explicit reply navigation', async t => {
   const app = await service(t);
   const session = app.relay.connect({ worker: 'original-author' });
   const ui = await reader(app.origin, window => {
     window.innerWidth = 390;
+    // Even if a short report leaves chat in view, focus is still on its passage.
+    window.HTMLElement.prototype.getBoundingClientRect = function () {
+      return this.classList.contains('message') ? { top: 200, bottom: 300 } : { top: 0, bottom: 80 };
+    };
     window.HTMLElement.prototype.scrollIntoView = function () {
       window.lastRevealedMessage = this.dataset.messageId;
     };
@@ -537,7 +544,12 @@ test('narrow question save keeps the report passage in place until an answer arr
   app.relay.answered(request.request_id);
   await ui.poll();
   const answer = app.store.conversation(thread.id).messages.at(-1);
+  assert.equal(ui.window.lastRevealedMessage, undefined, 'answer arrival must not scroll away from the report');
+  assert.equal(ui.$('latest-reply').hidden, false);
+  ui.$('latest-reply').click();
   assert.equal(ui.window.lastRevealedMessage, answer.id);
+  assert.equal(ui.window.document.activeElement.dataset.messageId, answer.id);
+  assert.equal(ui.$('latest-reply').hidden, true);
   app.relay.disconnect(session);
 });
 
@@ -657,4 +669,97 @@ test('author-supplied report language follows exact revisions without translatin
   assert.equal(ui.$('report').lang, 'en');
   assert.equal(ui.$('chat-quote').lang, 'fr');
   assert.equal(ui.$('snapshot-text').lang, 'fr');
+});
+
+test('activity follows actual turns and presence; waiting drafts stay editable and keyboard send waits for a terminal reply', async t => {
+  const app = await service(t);
+  const doc = app.store.current();
+  const thread = app.store.question(questionInput(doc, { quote: 'quoted', question: 'Why this passage?' }));
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  assert.match(ui.$('chat-status').textContent, /saved.*waiting to resume/);
+  assert.match(ui.$('chat-next').textContent, /conversation that presented.*stays queued/);
+  assert.equal(ui.$('followup').disabled, false);
+  assert.equal(ui.$('followup-submit').disabled, true);
+  assert.equal(ui.$('context-label').textContent, `Passage · revision ${doc.id}`);
+  assert.equal(ui.$('context-preview').textContent, 'quoted');
+  setFollowup(ui, 'A draft while waiting');
+  const keyboardSend = (key = 'ctrlKey') => ui.$('followup').dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Enter', [key]: true, bubbles: true, cancelable: true }));
+  keyboardSend();
+  assert.equal(app.store.conversation(thread.id).messages.length, 1);
+  const session = app.relay.connect({ worker: 'author-owned-fixture' });
+  await ui.poll();
+  assert.equal(ui.$('chat-status').textContent, 'Question saved · waiting for the agent');
+  const request = app.relay.reserve(session);
+  await ui.poll();
+  assert.equal(ui.$('chat-status').textContent, 'Agent is replying');
+  assert.equal(ui.$('followup').value, 'A draft while waiting');
+  ui.$('followup').focus();
+  app.store.answer(request.request_id, { lease_token: request.lease_token, status: 'failed', body: 'The supplied fixture could not finish this turn.', citations: [] });
+  app.relay.answered(request.request_id);
+  await ui.poll();
+  assert.equal(ui.$('chat-status').textContent, 'Reply failed · question saved');
+  assert.match(ui.$('chat-next').textContent, /follow-up to try again/);
+  assert.equal(ui.$('messages').querySelector('.message.failed .message-heading').textContent, 'AgentReply failed');
+  assert.equal(ui.window.document.activeElement, ui.$('followup'), 'answer arrival never takes focus from the draft');
+  assert.equal(ui.$('followup-submit').disabled, false);
+  keyboardSend('metaKey');
+  await waitFor(() => ui.$('followup').value === '');
+  const next = app.relay.reserve(session);
+  assert.equal(next.question, 'A draft while waiting');
+  assert.deepEqual(next.history.map(m => m.body), ['Why this passage?', 'The supplied fixture could not finish this turn.']);
+  assert.equal(next.document.id, doc.id);
+  assert.equal(next.quote, 'quoted');
+  app.store.answer(next.request_id, { lease_token: next.lease_token, status: 'answered', body: 'Supplied recovery reply.', citations: [] });
+  app.relay.answered(next.request_id);
+  await ui.poll();
+  assert.equal(ui.$('chat-status').textContent, 'Reply saved');
+  assert.match(ui.$('chat-next').textContent, /another report passage/);
+  app.relay.disconnect(session);
+});
+
+test('new turns append without rebuilding read history, expanded citations, focus or scroll position', async t => {
+  const app = await service(t);
+  const doc = app.store.current();
+  const thread = app.store.question(questionInput(doc, { quote: 'quoted' }));
+  await runFakeAgent(app.origin);
+  const ui = await reader(app.origin, window => { window.innerHeight = 1000; });
+  t.after(() => ui.dom.window.close());
+  const question = ui.$('messages').firstElementChild;
+  const reply = ui.$('messages').lastElementChild;
+  const citation = reply.querySelector('.citation-details');
+  citation.open = true;
+  citation.querySelector('summary').focus();
+  const log = ui.$('messages');
+  Object.defineProperties(log, { scrollHeight: { value: 1000 }, clientHeight: { value: 250 } });
+  log.scrollTop = 60;
+  app.store.followup(thread.id, { question: 'A follow-up from another tab', client_key: 'append-test' });
+  await ui.poll();
+  await runFakeAgent(app.origin);
+  await ui.poll();
+  assert.equal(log.children.length, 4);
+  assert.equal(log.firstElementChild, question);
+  assert.equal(log.children[1], reply);
+  assert.equal(citation.open, true);
+  assert.equal(ui.window.document.activeElement, citation.querySelector('summary'));
+  assert.equal(log.scrollTop, 60);
+  assert.equal(ui.$('latest-reply').hidden, false);
+  assert.equal(citation.querySelector('summary').textContent, `Source 1 · revision ${doc.id}`);
+  app.store.followup(thread.id, { question: 'One more turn', client_key: 'focused-source-test' });
+  await ui.poll();
+  log.scrollTop = 750; // At the end, but keyboard focus is still inspecting an earlier source.
+  await runFakeAgent(app.origin);
+  await ui.poll();
+  assert.equal(log.children.length, 6);
+  assert.equal(log.scrollTop, 750, 'do not scroll a focused earlier source out of view');
+  assert.equal(ui.window.document.activeElement, citation.querySelector('summary'));
+  const oldQuote = citation.querySelector('blockquote').textContent;
+  app.store.importReport({ title: 'Changed report', source: 'A different passage, never reattached.' });
+  await ui.poll();
+  assert.equal(citation.querySelector('blockquote').textContent, oldQuote);
+  assert.equal(citation.open, true);
+  assert.equal(ui.$('context-label').textContent, `Passage · revision ${doc.id}`);
+  assert.equal(ui.$('go-source').hidden, true);
+  citation.querySelector('button').click();
+  assert.match(ui.$('notice').textContent, /Historical citation.*Exact quote is preserved/);
 });

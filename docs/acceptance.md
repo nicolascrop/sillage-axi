@@ -376,3 +376,54 @@ colors, exhaustive zoom/browser coverage and model understanding are not claimed
 The generated skill remains under its 5,000-character installation contract.
 No external provider, automatic remote fetch or new filesystem authority is added.
 Remote delivery/CI validation is a later, separate gate.
+
+## Focused agent-chat clarity — 2026-09-11
+
+Candidate work in isolated `fm/sillage-agentic-chat-ux`. The supplied
+[Zed reference](https://zed.dev/img/agentic/posters/review-poster.webp) was visually
+inspected in Chrome: side-by-side reading, clear turns, compact context and an
+obvious composer informed the hierarchy, not branding, editor tools or providers.
+
+```sh
+npm test
+npm run check
+git diff --check
+CHROME_DEVTOOLS_AXI_BROWSER_URL=http://127.0.0.1:9223 \
+CHROME_DEVTOOLS_AXI_SESSION=your-verified-session npm run test:browser
+```
+
+- **92 tests passed**, including 25 executable reader DOM tests against real
+  loopback HTTP. New regressions cover waiting/reserved/failed/answered guidance,
+  editable waiting drafts, terminal-only keyboard submission, exact retry/history
+  and original revision context. New turns append without replacing previous
+  messages, open citations, table positions or focused source controls.
+- Two regressions were run against the previous reader and failed: it replaced
+  existing message nodes (losing disclosure/focus state), and answer arrival
+  scrolled a narrow reader away from the report. They pass with this change.
+  Automatic page navigation now requires the latest turn to be visible and no
+  active report draft/passage focus; otherwise **View latest reply** is explicit.
+- The expanded opt-in browser test passed in local Chrome 153 via
+  `chrome-devtools-axi` at **1440×1000, 1280×720, 390×844 and 320×844**. It checks
+  no horizontal page overflow, narrow Contents initially collapsed, visible
+  question/save actions, one wide history scroll, page scrolling in narrow/short
+  windows, expanded-context containment, citations, retained focus, native
+  Ctrl+Enter submission and continuous turns. A supplemental 1280×720 inspection
+  reproduced an expanded-context/composer overflow; flexible context and the
+  short-window page-scrolling fallback keep the controls reachable.
+- Browser fixtures now own the real JSONL ready/context/connected/request/answer/
+  saved loop. Each width sends a question and a follow-up, verifies the exact
+  handoff, prior turns, quote and revision delivered to the respondent, and keeps
+  a waiting draft until the reply finishes. Disconnecting during a final turn
+  produces an honest saved failure and author-owned recovery guidance; reopening
+  the page retains all six messages of that conversation and original context.
+  These are supplied synthetic replies, **not model inference** or reader setup.
+- Screenshots were inspected under `.data/test/chat-browser-1186812/`; baseline
+  reference/reader evidence and command logs are in `.data/agentic-chat/`. Final
+  Chrome console was empty; the recorded post-reopen network list contains only
+  same-origin loopback resources. These ignored artifacts contain fixtures only.
+  No production protocol, storage schema, configuration, aliases, provider,
+  telemetry, WebSocket or exposure boundary changed.
+
+Limitations remain: no physical touch keyboard, screen-reader session, exhaustive
+zoom/browser coverage or model-understanding claim. The optional Chrome test is
+not part of offline `npm test`. Remote delivery and CI are separate later gates.
