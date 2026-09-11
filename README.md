@@ -179,7 +179,7 @@ SILLAGE_DB=.data/demo.sqlite SILLAGE_PORT=3211 npm start
 SILLAGE_URL=http://127.0.0.1:3211 npm run fake-agent
 ```
 
-The default durable store is `.data/sillage.sqlite` relative to the working directory. Restart from the **same directory with the same database path**. **Run only one service per database.** Stop with Ctrl+C; restarting `npm start` restores the report, questions, reservations, replies, and unread state. Data is not encrypted: it has your OS account's privacy boundary. The service creates private data directories/files; `.data/` is gitignored. To back up, stop Sillage AXI and copy its SQLite file (do not copy only the main file while WAL writes are active).
+The default durable store is `.data/sillage.sqlite` relative to the working directory. Restart from the **same directory with the same database path**. **Run only one service per database.** Stop with Ctrl+C; restarting `npm start` restores the report, questions, replies, citations, and unread state. An unfinished managed reservation is failed during restart recovery; legacy reservations remain durable and reclaimable after their lease expires. Data is not encrypted: it has your OS account's privacy boundary. The service creates private data directories/files; `.data/` is gitignored. To back up, stop Sillage AXI and copy its SQLite file (do not copy only the main file while WAL writes are active).
 
 ## Walkthrough
 
@@ -204,7 +204,7 @@ keep their exact original revision and quote; changed or ambiguous context is ne
 
 The reader does not request disk access or observe browser file inputs. The authoring
 workflow already owns its report file/context capability and explicitly sends changed
-Markdown through `POST /api/document` (or the compatible keyed CLI import). Use a new
+Markdown through `POST /api/document` (or the compatible keyed CLI import when no handoff context is needed). Use a new
 operation key and the current expected revision for each intentional update; retry an
 uncertain acknowledgement with the identical payload/key. A conflict must be inspected,
 not overwritten. Include updated handoff context with each workflow revision when needed;
