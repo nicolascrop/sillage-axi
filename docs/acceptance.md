@@ -251,7 +251,7 @@ validation scope, not npm publication or remote CI status.
 ## Context handoff and reader chat — browser recovery
 
 Validated in the isolated `fm/sillage-reader-chat-context-browser` worktree with
-Node **v24.18.1** and local Chrome **148**, through `chrome-devtools-axi` attached
+Node **v24.18.1** and local Headless Chrome **153**, through `chrome-devtools-axi` attached
 to the existing loopback Chrome. The preserved implementation patch and handoff
 suite were restored only after their SHA-256 checks passed; the browser correction
 is a separate follow-up, not a replacement of that implementation.
