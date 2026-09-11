@@ -59,10 +59,10 @@ blockquote { border-left: 3px solid #7781b5; margin: 1rem 0; padding: .1rem 1rem
 pre { background: #202329; padding: 1.3rem; overflow: auto; border-radius: 7px; line-height: 1.6; }
 code { font: .88em/1.6 ui-monospace, monospace; background: #202329; padding: .12em .25em; }
 pre code { padding: 0; }
-.table-scroll { overflow: auto; max-width: 100%; margin-bottom: 2rem; padding: 6px; }
+.table-scroll { overflow-x: auto; overflow-y: hidden; max-width: 100%; min-width: 0; margin-bottom: 2rem; padding: 6px; }
 #report .table-hint { margin-bottom: .25rem; color: var(--muted); font-size: .8rem; }
 table { border-collapse: collapse; overflow-wrap: normal; }
-.table-scroll table { width: max-content; min-width: 100%; }
+.table-scroll table { display: table; width: max-content; min-width: 100%; max-width: none; }
 th, td { border: 1px solid var(--border); text-align: left; padding: .75rem 1rem; min-width: 8rem; max-width: 24rem; }
 th { background: var(--panel); }
 figure { margin: 2rem 0; padding: 1rem; border: 1px dashed #aa9677; }
@@ -87,13 +87,16 @@ figcaption { color: #e8c797; font-size: .85rem; }
 #followup-form label { margin: .4rem 0; }
 #followup-submit { margin-top: .5rem; }
 #followup { max-height: 20vh; }
-#bubble { position: fixed; z-index: 5; overflow: auto; background: #303541; box-shadow: 0 16px 48px #0006; border: 1px solid #747fac; border-radius: 12px; padding: 1.2rem; font-size: .9rem; }
-#bubble > header { display: flex; align-items: start; gap: .5rem; justify-content: space-between; }
+#bubble { position: fixed; z-index: 5; display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: #303541; box-shadow: 0 16px 48px #0006; border: 1px solid #747fac; border-radius: 12px; padding: 1.2rem; font-size: .9rem; }
+#bubble > header { display: flex; align-items: start; gap: .5rem; justify-content: space-between; flex-shrink: 0; }
 #bubble h2 { font-size: 1.05rem; margin: .35rem 0; }
 #bubble-close { padding: 0; min-width: 44px; font-size: 1.3rem; }
+#bubble-context { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 #bubble-quote { max-height: 6rem; overflow: auto; white-space: pre-wrap; font-size: .85rem; }
 #bubble-status { color: var(--accent); }
-#question { max-height: 30vh; }
+#question-form { flex-shrink: 0; margin: .75rem 0 0; padding-top: .75rem; border-top: 1px solid var(--border); background: #303541; }
+#question-form label { margin: 0; }
+#question { max-height: min(30vh, 8rem); }
 .message { border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem; }
 .message.user p, #snapshot-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .message.agent { padding: 1rem; background: #252a32; border-radius: 8px; }
@@ -101,7 +104,8 @@ figcaption { color: #e8c797; font-size: .85rem; }
 .markdown > :last-child { margin-bottom: 0; }
 .markdown h1, .markdown h2 { font-size: 1.15rem; }
 .markdown pre { padding: .8rem; }
-.markdown table { display: block; max-width: 100%; overflow: auto; }
+.markdown .table-scroll { margin-bottom: 1rem; }
+.markdown table { max-width: none; }
 .citation { text-align: left; color: var(--accent); font-size: .8rem; max-width: 100%; overflow-wrap: anywhere; }
 .citation-details { color: var(--accent); }
 .chat-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; flex-shrink: 0; }

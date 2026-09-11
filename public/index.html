@@ -19,7 +19,7 @@
       </div>
     </div>
     <div class="header-feedback">
-      <div class="notice-row"><p id="notice" role="status" aria-live="polite"></p><a id="notice-chat" href="#threads-panel" hidden>View conversation</a></div>
+      <div class="notice-row"><p id="notice" role="status" aria-live="polite"></p><a id="notice-chat" href="#threads-panel" hidden>View conversation</a><button id="notice-retry" type="button" hidden>Retry question</button></div>
       <p id="answer-alert" role="alert" hidden></p>
     </div>
   </header>
@@ -57,9 +57,11 @@
   </div>
   <section id="bubble" role="dialog" aria-labelledby="bubble-title" hidden>
     <header><h2 id="bubble-title">Ask about this passage</h2><button id="bubble-close" type="button" aria-label="Close question bubble">×</button></header>
-    <p id="bubble-anchor" class="muted"></p>
-    <blockquote id="bubble-quote"></blockquote>
-    <p id="bubble-status" role="status" aria-live="polite"></p>
+    <div id="bubble-context">
+      <p id="bubble-anchor" class="muted"></p>
+      <blockquote id="bubble-quote"></blockquote>
+      <p id="bubble-status" role="status" aria-live="polite"></p>
+    </div>
     <form id="question-form">
       <label>Your question <textarea id="question" rows="3" maxlength="4000" required></textarea></label>
       <button id="question-submit" type="submit">Ask question</button>
