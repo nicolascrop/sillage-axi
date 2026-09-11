@@ -147,7 +147,8 @@ The connected handoff document includes this optional language too.
 
 `POST /api/agent/connect` accepts optional `presentation` (the complete import
 payload with handoff), **or** `handoff_revision_id` (an already committed handoff).
-Presence conflict is checked before importing. The response adds `handoff` and `document:{id,title,source,created_at}` only
+Presence conflict is checked before importing. The response adds `handoff` and
+`document:{id,title,source,created_at}` plus optional author-supplied `language` only
 when a handoff is requested. The document is that exact handoff revision, even
 when a newer report exists. JSONL `ready` supports the same fields and delivers
 both in an additive `type:"context"` record before `connected`, so the owner or

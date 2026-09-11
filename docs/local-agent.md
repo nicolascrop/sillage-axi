@@ -37,7 +37,7 @@ Start `node src/local-agent.js` from the installed checkout and own its stdin/st
 
 The bridge calls the existing `POST /api/agent/connect`, now accepting optional `presentation`. It validates the worker and checks for a competing connection **before importing**. Import and context are committed together using the existing guarded/idempotent import transaction. The resulting readiness declaration automatically attaches the caller; no browser action is required. Invalid presentation leaves the report and presence unchanged. The context can concern any subject/repository, not only this example.
 
-Stdout emits `type:"context"` with `{handoff:{revision_id,subject,repository,conversation}, document:{id,title,source,created_at}}`, then the existing `type:"connected"`, followed by continuous request polling. The exact report and the supplied repository/subject/prior-conversation context reach the owner or delegate before its first question. Each request still includes the exact original report, context and citations, as in v1. The document field is additive; legacy ready without a handoff keeps its existing event sequence.
+Stdout emits `type:"context"` with `{handoff:{revision_id,subject,repository,conversation}, document:{id,title,source,created_at}}` plus optional author-supplied `language`, then the existing `type:"connected"`, followed by continuous request polling. The exact report and the supplied repository/subject/prior-conversation context reach the owner or delegate before its first question. Each request still includes the exact original report, context and citations, as in v1. The document field is additive; legacy ready without a handoff keeps its existing event sequence.
 
 ### Durable import then delegate (including larger reports)
 
