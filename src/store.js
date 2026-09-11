@@ -26,6 +26,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.now = now;
     this.db = new DatabaseSync(path);
+    this.db.exec('PRAGMA busy_timeout=5000');
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
     if (![0, 1, 2].includes(version)) {
       this.db.close();
