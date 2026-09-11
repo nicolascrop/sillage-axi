@@ -31,27 +31,30 @@
       <article id="report" aria-label="Markdown report"><p>Return to the conversation that produced your report and ask to present it with Sillage.</p></article>
     </main>
     <aside id="threads-panel" class="threads-panel" aria-label="Passage chat" tabindex="-1">
-      <header class="chat-header"><h2>Chat <span id="thread-count">(0)</span></h2>
-        <label for="thread-select">Conversation</label><select id="thread-select" aria-label="Active conversation"><option value="">No conversations yet</option></select>
+      <header class="chat-header">
+        <div class="chat-heading"><h2>Chat <span id="thread-count">(0)</span></h2>
+          <details id="conversation-actions" hidden><summary>Actions</summary><div class="chat-actions"><button id="mark-read" type="button" hidden>Mark read</button><button id="close-thread" type="button">Close conversation</button><p class="muted">Closing keeps history and does not stop a reply.</p></div></details>
+        </div>
+        <select id="thread-select" aria-label="Active conversation"><option value="">No conversations yet</option></select>
         <p id="conversation-state" class="muted" hidden></p>
         <details id="conversation-list" hidden><summary>Find a conversation</summary><ul id="conversation-choices"></ul></details>
       </header>
       <p id="chat-empty" class="muted">Ask about a passage to start. Your questions and replies stay saved on this PC.</p>
       <div id="chat" hidden>
         <div class="chat-context">
-          <button id="go-source" type="button">Go to passage</button>
-          <details id="context-details"><summary>Quoted passage and source</summary><p id="chat-anchor" class="muted"></p><blockquote id="chat-quote"></blockquote>
+          <details id="context-details"><summary><span id="context-label">Quoted passage and source</span><span id="context-preview" class="muted"></span></summary><p id="chat-anchor" class="muted"></p><blockquote id="chat-quote"></blockquote>
             <details id="snapshot"><summary>Original source snapshot</summary><pre id="snapshot-text"></pre></details>
           </details>
+          <button id="go-source" type="button">Go to passage</button>
         </div>
         <div id="messages" role="log" aria-label="Conversation history" aria-live="polite" tabindex="0"></div>
-        <p id="chat-status" role="status"></p>
+        <button id="latest-reply" type="button" hidden>View latest reply</button>
+        <div class="chat-activity"><p id="chat-status" role="status" aria-atomic="true"></p><p id="chat-next" class="muted"></p></div>
         <form id="followup-form">
-          <label for="followup">Continue this conversation</label><textarea id="followup" rows="2" maxlength="4000" required></textarea>
-          <button id="followup-submit" type="submit">Send message</button>
+          <label for="followup">Continue this conversation</label><textarea id="followup" rows="2" maxlength="4000" aria-describedby="chat-next followup-status followup-hint" placeholder="Ask a follow-up about this passage…" required></textarea>
+          <div class="composer-actions"><span id="followup-hint" class="muted">Ctrl / ⌘ + Enter to send</span><button id="followup-submit" type="submit">Send message</button></div>
           <p id="followup-status" role="status"></p>
         </form>
-        <div class="chat-actions"><button id="mark-read" type="button" hidden>Mark read</button><button id="close-thread" type="button">Close conversation</button></div>
       </div>
     </aside>
   </div>
