@@ -312,3 +312,67 @@ Markdown, native menu, quote, Contents and listening-loss PNGs; snapshots and
 geometry; before/after poll diagnostics; JSONL logs and SQLite reopen observations;
 full tests/check logs. `preserved/` retains the earlier partial browser evidence
 without treating it as this pass's proof. No reader database/report is committed.
+
+## C.L.E.A.R. reader corrections and author-owned handoff — 2026-09-11
+
+Candidate implementation in `fm/sillage-uiux-clear-review-retry`, based on
+`374e11f88ae4d22191e1397c87939c8da4d1ec17`. The separate visual review reproduced
+crushed table columns, an off-screen question action, and off-screen save feedback
+at 1440×1000 and 390×844. The selected product choices are **English UI** and
+**Contents initially collapsed on narrow screens**, without a saved preference.
+
+```sh
+npm test
+npm run check
+git diff --check
+# Optional real layout regression; configure chrome-devtools-axi with an existing
+# local Chrome and an installed local MCP first. No browser install is performed.
+CHROME_DEVTOOLS_AXI_BROWSER_URL=http://127.0.0.1:9223 \
+CHROME_DEVTOOLS_AXI_SESSION=your-verified-session npm run test:browser
+```
+
+- **84 tests passed, 0 failed**, using Node 24 and disposable local databases.
+  New DOM regressions execute the real reader against loopback HTTP: narrow
+  initial Contents state, visible empty selection, actual-height dialog placement,
+  explicit saved-question navigation without silent report scrolling, readable
+  quote presentation with byte-preserved source, full-question conversation
+  selection, and author-supplied content language across revisions. Initial
+  narrow-state, dialog-placement and readable-quote assertions failed before
+  their fixes. Existing idle-poll identity, retries, safe anchors, close/reopen,
+  failure/deadline, persistence and compatibility tests remain passing.
+- The authoring agent or its explicitly authorized delegate owns the local bridge
+  as part of presenting any report; no separate reader-configured reasoner is
+  required. The actual JSONL handoff test delivers repository, subject, prior
+  conversation **and the exact report before the first reader question**, answers
+  two successive turns, and reattaches a delegate to the original revision after
+  a later import. Model/provider selection and transcript/file capture are absent.
+  Earlier references above to a separately configured fully local reasoner are
+  historical; the current provider-agnostic ownership contract is in
+  [the connection guide](local-agent.md).
+- Optional `language` metadata is validated, guarded by keyed import equality,
+  durable and revision-bound. Missing language is not guessed or translated.
+  The English interface, exact source/citations, v1 route names and schema version
+  remain unchanged; metadata uses an additive table.
+- `npm run test:browser` is an **opt-in executable geometry regression**, not a
+  source/CSS string check and not part of offline `npm test`. It uses only
+  `chrome-devtools-axi`, lists pages, creates its own disposable report page and
+  explicitly selects its ID before snapshots/interactions. It cleans up its own
+  page/server and leaves shared Chrome alone. A local run passed at **1440×1000,
+  390×844 and 320×844**, checking readable horizontally scrolling table cells,
+  whole-dialog and send-button visibility, on-screen confirmation/navigation,
+  one scrolling history with a visible wide follow-up, page-only narrow history,
+  citations, Escape/Enter/close behavior, and an on-screen real listening-loss
+  alert while scrolled into the report. Healthy presence is hidden.
+- PNG evidence was inspected under `.data/test/clear-browser-4166891/` and earlier
+  `.data/test/clear-browser-4097412/`: wide answer/start/composer, narrow first
+  reading screen, table, full question form and listening-loss alert. These are
+  disposable synthetic fixtures, not reader data or model inference. The optional
+  test generates its own new evidence directory each run.
+
+Limitations: layout checks exercise real Chrome but some interactions are DOM
+clicks through DevTools, not a touch device. The visual viewport handler also has
+controlled resize coverage; a physical virtual keyboard, screen readers, forced
+colors, exhaustive zoom/browser coverage and model understanding are not claimed.
+The generated skill remains under its 5,000-character installation contract.
+No external provider, automatic remote fetch or new filesystem authority is added.
+Remote delivery/CI validation is a later, separate gate.

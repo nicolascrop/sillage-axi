@@ -3,7 +3,7 @@ import { description, discovery, legacyCommand, primaryCommand, productName, saf
 export function skill() {
   return `---
 name: ${legacyCommand}
-description: Inspect a local Markdown report, discuss exact passages, or attach an already-running local-only reasoner to ${productName}.
+description: Present an agent-authored report with its context and continuous answering loop, or inspect exact passages in ${productName}.
 metadata:
   argument-hint: "[local Markdown path or reader task]"
   product: ${primaryCommand}
@@ -25,31 +25,27 @@ ${safety.map(value => `- ${value}`).join('\n')}
 
 ## Local installation and discovery
 
-This skill is portable guidance, not a bundled runtime. Ask for an already-installed
-${productName} checkout when its location is unknown; do not download one implicitly.
-With Node 24+ and dependencies preinstalled, no registry or global binary is needed:
+Use an already-installed ${productName} checkout with Node 24+ and dependencies.
+If its location is unknown, ask; never download implicitly. No global bin is needed:
 
 \`\`\`sh
 node /absolute/path/to/${primaryCommand}/bin/${primaryCommand}.js --help
 node /absolute/path/to/${primaryCommand}/bin/${primaryCommand}.js --scope /absolute/path/to/report-directory
 \`\`\`
 
-The historical direct path \`node /absolute/path/to/${primaryCommand}/bin/${legacyCommand}.js\` remains valid.
-If the verified \`${primaryCommand}\` binary is on PATH, the same discovery commands are:
+The historical \`bin/${legacyCommand}.js\` path also works. With a verified PATH binary:
 
 \`\`\`sh
 ${discovery.join('\n')}
 \`\`\`
 
-Carry \`--scope\` and \`--url\` from the current observation into subsequent commands.
-Use \`--full\` only when a preview is truncated. Get current flags and examples from
-\`${primaryCommand} <command> --help\`; get the complete reply/citation contract and failure
-lifecycle with \`${primaryCommand} agent-help\`. These are runtime commands.
+Carry \`--scope\` and \`--url\` into subsequent commands. Use \`--full\` for truncated
+previews; \`${primaryCommand} <command> --help\` for flags and examples; and
+\`${primaryCommand} agent-help\` for reply/citation, lifetime and recovery contracts.
 
-Prefer explicit opt-in \`${primaryCommand} setup --app <claude|codex|opencode> --local-only\`
-for ambient availability in a locally configured harness. This skill is the
-on-demand alternative; installing either is sufficient for discovery. Neither
-installation grants permission to disclose private content to an external model.
+Optional \`${primaryCommand} setup --app <claude|codex|opencode> --local-only\` installs
+availability-only hooks in a locally configured harness; this skill is an alternative.
+Neither grants permission to disclose content to an external model.
 
 ## Present your own report
 
@@ -57,9 +53,8 @@ ${presentationGuidance}
 
 ## Explicit continuous attachment
 
-Only when a reasoner is already running locally and authorized to answer, start
-this direct JSONL command **from the installed ${productName} checkout**, not the skill
-folder (the finite CLI equivalent is not the attachment):
+As the presenting agent or its explicitly authorized delegate, own both ends of
+this JSONL command **from the installed checkout**, not the skill folder:
 
 \`\`\`sh
 node src/local-agent.js
@@ -67,7 +62,8 @@ node src/local-agent.js
 
 Or use the absolute checkout path to \`src/local-agent.js\` from any directory.
 Set \`SILLAGE_URL\` for a nondefault loopback service. Use \`${primaryCommand} agent-help\`
-before sending the ready handshake. Alternatively \`${primaryCommand} attach\` explicitly
+before sending the ready presentation. This is part of your handoff, not a setup
+instruction for the reader. Alternatively \`${primaryCommand} attach\` explicitly
 selects JSONL mode with directory checks. The historical \`${legacyCommand} attach\` alias
 has the same behavior. Do not wrap machine stdio in npm banners. No automatic model
 launch, reserve retry or fabricated answer is permitted.

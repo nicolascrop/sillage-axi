@@ -108,7 +108,7 @@ export async function main(argv) {
         const displayExecutable = current.executable;
         data = { bin: displayExecutable.startsWith(`${homedir()}/`) ? `~${displayExecutable.slice(homedir().length)}` : displayExecutable, description, ...data };
       } else if (name === 'context') {
-        help.push(`Only a separately authorized local-only reasoner may invoke ${current.command} to inspect reader content.`);
+        help.push(`Only the presenting agent or an explicitly authorized delegate may invoke ${current.command} to inspect reader content; availability alone grants no disclosure permission.`);
       } else if (name === 'blocks' || name === 'threads') {
         if (data.total) help.push(hint(name === 'blocks' ? `${primaryCommand} block <id> --revision ${data.revision_id}` : `${primaryCommand} thread <id>`));
         else if (name === 'blocks' && data.current_revision_id !== undefined) help.push(hint(commandsImportExample(data.current_revision_id)));

@@ -10,6 +10,7 @@ let polling = false;
 let selectionHandled = false;
 let agent = { state: 'unavailable' };
 const drafts = new Map();
+let savedNoticeThread = null;
 
 async function api(path, body, method = 'POST') {
   const response = await fetch(path, { ...(body === undefined ? {} : {
@@ -20,7 +21,11 @@ async function api(path, body, method = 'POST') {
   if (!response.ok) throw new Error(value.error || `Local service returned ${response.status}`);
   return value;
 }
-function notice(message) { $('notice').textContent = message; }
+function notice(message, conversationId = null) {
+  if ($('notice').textContent !== message) $('notice').textContent = message;
+  savedNoticeThread = conversationId;
+  $('notice-chat').hidden = !conversationId;
+}
 function node(tag, text, className) {
   const element = document.createElement(tag);
   if (text !== undefined) element.textContent = text;
@@ -41,9 +46,22 @@ function renderDocument(value) {
   report = value;
   if (!value) return;
   $('report-title').textContent = value.title;
-  $('revision').textContent = `Revision ${value.id} · saved on this PC`;
+  $('revision').textContent = `Revision ${value.id}`;
   // Only the server's Markdown-it + sanitize-html output crosses this boundary.
   $('report').innerHTML = value.html;
+  for (const id of ['report', 'report-title', 'toc']) $(id).lang = value.language || '';
+  const heading = $('report').querySelector('h1');
+  $('report-title').hidden = heading?.textContent.trim() === value.title.trim();
+  // The scrollable wrapper is presentation only; table passage identity stays intact.
+  for (const table of $('report').querySelectorAll('table')) {
+    const region = node('div', undefined, 'table-scroll');
+    region.tabIndex = 0;
+    region.setAttribute('role', 'region');
+    region.setAttribute('aria-label', 'Report table — scroll horizontally for more columns');
+    const hint = node('p', 'Table · scroll horizontally to compare all columns', 'table-hint');
+    table.before(hint, region);
+    region.append(table);
+  }
   $('toc').replaceChildren(...value.toc.map(heading => {
     const item = node('li', undefined, `depth-${heading.level}`);
     const link = node('a', heading.text);
@@ -89,27 +107,61 @@ function renderThreads() {
   const review = threads.filter(t => t.anchor_status === 'needs_review').length;
   $('thread-alert').textContent = [unread ? `${unread} unread` : '', review ? `${review} to review` : ''].filter(Boolean).join(' · ');
   $('thread-select').replaceChildren(...threads.map(thread => {
-    const option = node('option', compact(`${labels(thread) ? `${labels(thread)} · ` : ''}${thread.messages[0].body}`));
+    const option = node('option', compact(`${thread.messages[0].body}`, 52) + ` · ${thread.id.slice(0, 8)}`);
     option.value = thread.id;
     return option;
   }));
-  if (!threads.length) $('thread-select').append(node('option', 'No conversations yet'));
+  if (!threads.length) {
+    const empty = node('option', 'No conversations yet');
+    empty.value = '';
+    $('thread-select').append(empty);
+  }
+  $('conversation-list').hidden = !threads.length;
+  $('conversation-choices').replaceChildren(...threads.map(thread => {
+    const item = node('li');
+    const button = node('button');
+    button.type = 'button';
+    button.setAttribute('aria-current', String(thread.id === activeThread));
+    const preview = node('span', compact(readableQuote(thread.quote, thread.context.block), 160), 'muted');
+    preview.lang = thread.language || '';
+    button.append(node('strong', thread.messages[0].body), preview,
+      node('span', `Revision ${thread.revision_id} · ${labels(thread) || 'Saved'}`, 'muted'));
+    button.addEventListener('click', () => {
+      selectThread(thread.id);
+      $('conversation-list').open = false;
+      $('thread-select').focus({ preventScroll: true });
+    });
+    item.append(button);
+    return item;
+  }));
   $('thread-select').disabled = !threads.length;
   $('thread-select').value = activeThread || '';
   $('chat-empty').hidden = Boolean(activeThread);
   $('chat').hidden = !activeThread;
+  if (!activeThread) $('conversation-state').hidden = true;
   highlightPassages();
   drawThread();
   drawAgent(agent);
 }
+function readableQuote(quote, block) {
+  return block && quote === block.source.trim() ? block.text : quote;
+}
 function placeBubble(target) {
   const rect = target?.getBoundingClientRect();
-  const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
-  const width = Math.min(410, viewportWidth - 24);
-  $('bubble').style.width = `${width}px`;
-  $('bubble').style.left = `${Math.max(12, Math.min((rect?.right ?? 24) - width / 2, viewportWidth - width - 12))}px`;
-  const top = Math.min(Math.max(rect?.top ?? 80, 65), Math.max(65, window.innerHeight - 240));
-  $('bubble').style.top = `${window.scrollY + top + 12}px`;
+  const viewport = window.visualViewport;
+  const viewportWidth = Math.min(viewport?.width || innerWidth, document.documentElement.clientWidth || innerWidth);
+  const left = viewport?.offsetLeft || 0;
+  const top = viewport?.offsetTop || 0;
+  const bottom = top + (viewport?.height || innerHeight);
+  const header = document.querySelector('.site-header').getBoundingClientRect().bottom || 0;
+  const minTop = Math.max(top + 12, Math.min(header + 12, top + (bottom - top) / 3));
+  const width = Math.max(0, Math.min(410, viewportWidth - 24));
+  const element = $('bubble');
+  element.style.width = `${width}px`;
+  element.style.left = `${Math.max(left + 12, Math.min((rect?.right ?? left + 24) - width / 2, left + viewportWidth - width - 12))}px`;
+  element.style.maxHeight = `${Math.max(0, bottom - minTop - 12)}px`;
+  const height = element.getBoundingClientRect().height;
+  element.style.top = `${Math.max(minTop, Math.min(rect?.top ?? minTop, bottom - height - 12))}px`;
 }
 function closeBubble() {
   // A local draft is reversible UI state; closing never prompts, even while a
@@ -132,7 +184,8 @@ function openQuestion(element, quote) {
   $('bubble').hidden = false;
   $('bubble-anchor').classList.remove('review');
   $('bubble-anchor').textContent = `Revision ${report.id} · ${block.kind} · lines ${block.start_line}–${block.end_line}`;
-  $('bubble-quote').textContent = exact;
+  $('bubble-quote').textContent = readableQuote(exact, block);
+  $('bubble-quote').lang = report.language || '';
   $('bubble-status').textContent = 'Draft · not sent';
   $('question').value = '';
   $('question').disabled = false;
@@ -146,18 +199,26 @@ function drawThread() {
   const signature = JSON.stringify(thread);
   if (drawnThread === signature) return;
   drawnThread = signature;
+  $('conversation-state').textContent = labels(thread);
+  $('conversation-state').hidden = !labels(thread);
   $('chat-anchor').textContent = thread.anchor_status === 'needs_review'
     ? `Passage to review — no safe match in revision ${thread.current_revision_id}. Original context kept; not reattached.`
     : `Original revision ${thread.revision_id} · passage matched in revision ${thread.current_revision_id}`;
   $('chat-anchor').classList.toggle('review', thread.anchor_status === 'needs_review');
-  $('chat-quote').textContent = thread.quote;
+  $('chat-quote').textContent = readableQuote(thread.quote, thread.context.block);
+  $('chat-quote').lang = thread.language || '';
+  $('snapshot-text').lang = thread.language || '';
   $('chat-status').textContent = thread.request_status === 'waiting' ? 'Saved · waiting for a reply'
     : thread.request_status === 'reserved' ? 'Saved · preparing a reply'
       : thread.request_status === 'failed' ? 'Reply failed · your question is saved' : 'Saved · answered';
   const log = $('messages');
   const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  const lastMessageId = log.lastElementChild?.dataset.messageId;
+  const previousEnd = thread.messages.findIndex(message => message.id === lastMessageId);
+  const oldScroll = log.scrollTop;
   log.replaceChildren(...thread.messages.map(message => {
     const item = node('section', undefined, `message ${message.role}`);
+    item.dataset.messageId = message.id;
     const demo = message.worker === 'deterministic-fake-v1';
     item.append(node('strong', message.role === 'user' ? 'You' : demo ? 'Demo adapter · not AI'
       : message.status === 'failed' ? 'Reply could not be completed' : 'Agent'));
@@ -168,21 +229,31 @@ function drawThread() {
       item.append(body);
     } else item.append(node('p', message.body));
     for (const citation of message.citations) {
-      const link = node('button', `Citation · revision ${citation.revision_id}: “${citation.quote}”`, 'citation');
+      const block = citation.block_id === thread.block_id ? thread.context.block : null;
+      const citationDetails = node('details', undefined, 'citation-details');
+      const link = node('button', `Go to cited passage · revision ${citation.revision_id}`, 'citation');
+      const quote = node('blockquote', readableQuote(citation.quote, block));
+      if (citation.revision_id === thread.revision_id) quote.lang = thread.language || '';
+      citationDetails.append(node('summary', 'Citation'), quote);
       link.type = 'button';
       link.addEventListener('click', () => {
         const target = passageElement(citation.block_id);
         if (target) target.scrollIntoView({ block: 'center' });
         else notice(`Historical citation (revision ${citation.revision_id}); no current match. Exact quote is preserved in the conversation.`);
       });
-      item.append(link);
+      citationDetails.append(link);
+      item.append(citationDetails);
     }
     return item;
   }));
-  if (atEnd) log.scrollTop = log.scrollHeight;
+  log.scrollTop = oldScroll;
+  // Reveal the start of a new answer, not only its tail; never scroll the report.
+  if (atEnd && previousEnd < thread.messages.length - 1) {
+    revealMessage(log.children[Math.max(0, previousEnd + 1)]);
+  }
   $('go-source').hidden = thread.anchor_status !== 'matched' || !passageElement(thread.block_id);
   $('mark-read').hidden = !thread.unread;
-  $('close-thread').textContent = thread.closed ? 'Reopen thread' : 'Close thread';
+  $('close-thread').textContent = thread.closed ? 'Reopen conversation' : 'Close conversation';
   $('snapshot-text').textContent = `Revision ${thread.revision_id}, lines ${thread.context.block.start_line}–${thread.context.block.end_line}\n\n${thread.context.block.source}`;
   drawComposer();
 }
@@ -196,11 +267,16 @@ function drawComposer() {
   $('followup-submit').textContent = draft?.payload && !draft.saving ? 'Retry message' : 'Send message';
   $('followup-status').textContent = draft?.error || (draft?.saving ? 'Saving…' : busy ? 'You can continue when this reply finishes.' : '');
 }
+function revealMessage(element) {
+  const log = $('messages');
+  if (element) log.scrollTop = element.offsetTop - log.firstElementChild.offsetTop;
+}
 async function selectThread(id, markRead = true) {
+  if (activeThread !== id) { $('context-details').open = false; $('snapshot').open = false; }
   activeThread = id;
   drawnThread = null;
   renderThreads();
-  $('messages').scrollTop = $('messages').scrollHeight;
+  revealMessage($('messages').querySelector('.message.agent:last-of-type') || $('messages').lastElementChild);
   if (markRead && threads.find(t => t.id === id)?.unread) {
     try { await api(`/api/conversations/${id}`, { unread: false }, 'PATCH'); await refreshThreads(); }
     catch (error) { notice(error.message); }
@@ -211,7 +287,7 @@ function updateDocument(value) {
   const y = window.scrollY;
   const focusId = document.activeElement?.dataset.blockId;
   const safeIds = new Set(value?.blocks.map(b => b.id));
-  const top = document.querySelector('.topbar').getBoundingClientRect().bottom + 16;
+  const top = document.querySelector('.site-header').getBoundingClientRect().bottom + 16;
   const candidates = [...$('report').querySelectorAll('[data-block-id]')]
     .map(element => ({ id: element.dataset.blockId, top: element.getBoundingClientRect().top }))
     .filter(item => safeIds.has(item.id));
@@ -246,6 +322,23 @@ async function refreshThreads() {
   } finally { polling = false; }
 }
 
+if (innerWidth <= 700) {
+  $('toc-panel').hidden = true;
+  $('toc-toggle').setAttribute('aria-expanded', 'false');
+  $('layout').classList.add('toc-collapsed');
+}
+function sizeHeader() {
+  const height = document.querySelector('.site-header').getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--header-height', `${height}px`);
+  if (bubble) placeBubble(bubble.target);
+}
+if (window.ResizeObserver) new ResizeObserver(sizeHeader).observe(document.querySelector('.site-header'));
+$('notice-chat').addEventListener('click', async event => {
+  event.preventDefault();
+  if (savedNoticeThread && threads.some(t => t.id === savedNoticeThread)) await selectThread(savedNoticeThread);
+  $('threads-panel').focus({ preventScroll: true });
+  $('threads-panel').scrollIntoView({ block: 'start' });
+});
 $('toc-toggle').addEventListener('click', () => {
   $('toc-panel').hidden = !$('toc-panel').hidden;
   $('toc-toggle').setAttribute('aria-expanded', String(!$('toc-panel').hidden));
@@ -292,7 +385,7 @@ $('question-form').addEventListener('submit', async event => {
     if (draftIsCurrent) closeBubble();
     if (draftIsCurrent && activeThread === selectedThread) activeThread = thread.id;
     await refreshThreads();
-    notice('Question saved. Continue in the chat.');
+    notice('Question saved.', thread.id);
   } catch (error) {
     if (bubble === current) {
       $('bubble-status').textContent = `${error.message}. Retry sends this same question safely; close to start a different draft.`;
@@ -324,7 +417,9 @@ $('followup-form').addEventListener('submit', async event => {
 });
 $('bubble-close').addEventListener('click', closeBubble);
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeBubble(); });
-window.addEventListener('resize', () => { if (bubble) placeBubble(bubble.target); });
+window.addEventListener('resize', sizeHeader);
+window.visualViewport?.addEventListener('resize', () => { if (bubble) placeBubble(bubble.target); });
+window.visualViewport?.addEventListener('scroll', () => { if (bubble) placeBubble(bubble.target); });
 $('thread-select').addEventListener('change', () => selectThread($('thread-select').value));
 $('go-source').addEventListener('click', () => {
   const thread = threads.find(t => t.id === activeThread);

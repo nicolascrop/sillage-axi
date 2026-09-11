@@ -39,13 +39,16 @@ export class LocalRelay {
       handoff_revision_id = this.store.importReport(presentation).id;
     }
     let handoff;
+    let document;
     if (handoff_revision_id !== undefined) {
       if (!Number.isSafeInteger(handoff_revision_id)) throw new Problem(400, 'handoff_revision_id must be an integer');
       handoff = this.store.handoff(handoff_revision_id);
       if (!handoff) throw new Problem(404, 'No handoff for this exact revision');
+      const { id, title, source, created_at } = this.store.revision(handoff_revision_id);
+      document = { id, title, source, created_at, ...this.store.documentLanguage(id) };
     }
     this.session = { id: randomUUID(), worker, until: this.now() + 20_000 };
-    return { session_id: this.session.id, ...this.status(), ...(handoff ? { handoff } : {}) };
+    return { session_id: this.session.id, ...this.status(), ...(handoff ? { handoff, document } : {}) };
   }
   requireSession({ session_id }) {
     this.sweep();

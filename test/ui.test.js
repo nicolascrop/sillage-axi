@@ -206,7 +206,7 @@ test('live revisions keep safe reading anchors, old drafts and chat provenance w
     window.HTMLElement.prototype.getBoundingClientRect = function () {
       const changed = window.document.getElementById('report').textContent.includes('modifié');
       const top = this.textContent === 'Passage stable.' ? (changed ? 160 : 90) : 500;
-      return { top, bottom: this.classList.contains('topbar') ? 70 : top + 30, right: 800 };
+      return { top, bottom: this.classList.contains('site-header') ? 70 : top + 30, right: 800 };
     };
   });
   t.after(() => ui.dom.window.close());
@@ -226,9 +226,9 @@ test('live revisions keep safe reading anchors, old drafts and chat provenance w
   assert.equal(thread.revision_id, first.id);
   await runFakeAgent(app.origin); await ui.poll();
   ui.$('close-thread').click();
-  await waitFor(() => ui.$('close-thread').textContent === 'Reopen thread');
+  await waitFor(() => ui.$('close-thread').textContent === 'Reopen conversation');
   assert.equal(ui.$('thread-select').options.length, 1);
-  assert.match(ui.$('thread-select').textContent, /passage to review/);
+  assert.match(ui.$('conversation-state').textContent, /passage to review/);
   app.store.importReport({ title: 'Rapport', source: first.source }); await ui.poll();
   assert.equal(app.store.thread(thread.id).anchor_status, 'needs_review');
   assert.equal(ui.$('report').querySelector('.selected-passage'), null);
@@ -419,4 +419,97 @@ test('unchanged polls preserve the native thread choices, focus and draft withou
   await ui.poll();
   assert.equal(ui.$('answer-alert').hidden, false, 'real presence changes still alert');
   await assertQuietPoll();
+});
+
+test('narrow arrival collapses Contents without persistence and empty chat has a visible option', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin, window => { window.innerWidth = 390; });
+  t.after(() => ui.dom.window.close());
+  assert.equal(ui.$('toc-panel').hidden, true);
+  assert.equal(ui.$('toc-toggle').getAttribute('aria-expanded'), 'false');
+  assert.equal(ui.$('thread-select').selectedOptions[0]?.textContent, 'No conversations yet');
+  ui.$('toc-toggle').click(); await ui.poll();
+  assert.equal(ui.$('toc-panel').hidden, false, 'explicit reader choice survives polling');
+  assert.equal(ui.window.localStorage.length, 0);
+});
+
+test('question placement uses actual bubble height and the visible viewport', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin, window => {
+    window.innerWidth = 390; window.innerHeight = 844;
+    window.HTMLElement.prototype.getBoundingClientRect = function () {
+      if (this.id === 'bubble') return { height: Math.min(520, parseFloat(this.style.maxHeight) || 520) };
+      if (this.classList.contains('site-header')) return { bottom: 112, height: 112 };
+      return { top: 422, right: 360, bottom: 470 };
+    };
+  });
+  t.after(() => ui.dom.window.close());
+  ui.$('report').querySelector('p').click();
+  const e = ui.$('bubble');
+  assert.ok(parseFloat(e.style.top) + e.getBoundingClientRect().height <= 832);
+  ui.window.innerHeight = 400;
+  ui.window.dispatchEvent(new ui.window.Event('resize'));
+  assert.ok(parseFloat(e.style.top) + e.getBoundingClientRect().height <= 388);
+  assert.equal(ui.window.document.activeElement, ui.$('question'));
+});
+
+test('saved confirmation offers explicit navigation; quotes remain exact but display readable text', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  ui.$('report').querySelector('p').click();
+  assert.equal(ui.$('bubble-quote').textContent, 'An exact quoted passage.');
+  ui.$('question').value = 'Why?'; submit(ui, 'question-form');
+  await waitFor(() => ui.$('notice').textContent.includes('Question saved'));
+  const thread = app.store.threads()[0];
+  assert.equal(thread.quote, 'An exact **quoted** passage.');
+  assert.equal(ui.$('chat-quote').textContent, 'An exact quoted passage.');
+  assert.equal(ui.$('notice-chat').hidden, false);
+  assert.equal(ui.window.lastScrolled, undefined);
+  ui.$('notice-chat').click();
+  await waitFor(() => ui.window.lastScrolled === 'threads-panel');
+  assert.equal(ui.window.document.activeElement, ui.$('threads-panel'));
+});
+
+test('full conversation chooser distinguishes long questions without replacing the native control on idle polls', async t => {
+  const app = await service(t);
+  const doc = app.store.current();
+  const prefix = 'A long shared introduction '.repeat(5);
+  const one = app.store.question(questionInput(doc, { question: prefix + 'FIRST', client_key: 'full-one', quote: 'quoted' }));
+  const two = app.store.question(questionInput(doc, { question: prefix + 'SECOND', client_key: 'full-two', quote: 'quoted' }));
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const buttons = [...ui.$('conversation-choices').querySelectorAll('button')];
+  assert.equal(buttons.length, 2);
+  const first = buttons.find(b => b.textContent.includes('FIRST'));
+  assert.ok(first.textContent.includes(prefix));
+  ui.$('conversation-list').open = true;
+  first.click();
+  assert.equal(ui.$('thread-select').value, one.id);
+  assert.equal(ui.$('conversation-list').open, false);
+  assert.equal(ui.window.document.activeElement, ui.$('thread-select'));
+  choose(ui, two.id);
+  assert.match(ui.$('messages').textContent, /SECOND/);
+});
+
+test('author-supplied report language follows exact revisions without translating the English interface', async t => {
+  const app = await service(t, null);
+  app.store.importReport({ title: 'Rapport', source: '# Rapport\n\nUn passage français.', language: 'fr' });
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  assert.equal(ui.window.document.documentElement.lang, 'en');
+  assert.equal(ui.$('report').lang, 'fr');
+  assert.equal(ui.$('toc').lang, 'fr');
+  assert.equal(ui.$('report-title').lang, 'fr');
+  assert.equal(ui.$('report-title').hidden, true);
+  ui.$('report').querySelector('p').click();
+  assert.equal(ui.$('bubble-quote').lang, 'fr');
+  ui.$('question').value = 'Pourquoi ?'; submit(ui, 'question-form');
+  await waitFor(() => ui.$('notice').textContent === 'Question saved.');
+  assert.equal(ui.$('chat-quote').lang, 'fr');
+  app.store.importReport({ title: 'English', source: '# English\n\nA different passage.', language: 'en' });
+  await ui.poll();
+  assert.equal(ui.$('report').lang, 'en');
+  assert.equal(ui.$('chat-quote').lang, 'fr');
+  assert.equal(ui.$('snapshot-text').lang, 'fr');
 });
