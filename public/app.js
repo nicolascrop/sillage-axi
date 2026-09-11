@@ -4,6 +4,7 @@ let threads = [];
 let activeThread = null;
 let drawnThread = null;
 let drawnThreads = null;
+let threadSelectionInitialized = false;
 let bubble = null;
 let polling = false;
 let selectionHandled = false;
@@ -72,7 +73,12 @@ function labels(thread) {
     thread.request_status === 'failed' ? 'reply failed' : ''].filter(Boolean).join(' · ');
 }
 function renderThreads() {
-  if (!threads.some(t => t.id === activeThread)) activeThread = threads[0]?.id ?? null;
+  if (!threadSelectionInitialized) {
+    if (threads.length) activeThread = threads[0].id;
+    threadSelectionInitialized = true;
+  } else if (activeThread !== null && !threads.some(t => t.id === activeThread)) {
+    activeThread = threads[0]?.id ?? null;
+  }
   // Do not replace native options or invalidate focus/accessibility state on idle
   // polls. Presence is independent and must still surface real listening loss.
   const signature = JSON.stringify([threads, activeThread, report?.id]);
@@ -273,6 +279,7 @@ $('question-form').addEventListener('submit', async event => {
   event.preventDefault();
   if (!bubble || bubble.saving) return;
   const current = bubble;
+  const selectedThread = activeThread;
   current.payload ||= { revision_id: current.revisionId, block_id: current.blockId,
     quote: current.quote, question: $('question').value, client_key: current.clientKey };
   current.saving = true;
@@ -281,8 +288,10 @@ $('question-form').addEventListener('submit', async event => {
   $('bubble-status').textContent = 'Saving locally…';
   try {
     const thread = await api('/api/questions', current.payload);
-    if (bubble === current) closeBubble();
-    activeThread = thread.id;
+    if (bubble === current && activeThread === selectedThread) {
+      closeBubble();
+      activeThread = thread.id;
+    }
     await refreshThreads();
     notice('Question saved. Continue in the chat.');
   } catch (error) {
