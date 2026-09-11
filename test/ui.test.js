@@ -299,3 +299,35 @@ test('question bubble fits the usable narrow viewport', async t => {
   const bubble = ui.$('bubble');
   assert.ok(Number.parseFloat(bubble.style.left) + Number.parseFloat(bubble.style.width) <= 375);
 });
+
+test('unchanged polls preserve the native thread choices, focus and draft without DOM mutations', async t => {
+  const app = await service(t);
+  const session = app.relay.connect({ worker: 'original-author' });
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  async function assertQuietPoll() {
+    const mutations = [];
+    const observer = new ui.window.MutationObserver(records => mutations.push(...records));
+    observer.observe(ui.window.document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+    await ui.poll();
+    observer.disconnect();
+    assert.deepEqual(mutations.map(record => record.target.id), [], 'idle polling must not invalidate native controls or accessibility snapshots');
+  }
+  ui.$('report').querySelector('p').click();
+  ui.$('question').value = 'Unsent draft';
+  await assertQuietPoll();
+  assert.equal(ui.$('question').value, 'Unsent draft');
+  assert.equal(ui.window.document.activeElement, ui.$('question'));
+  ui.$('bubble-close').click();
+  app.store.question(questionInput(app.store.current(), { quote: 'quoted' }));
+  await ui.poll();
+  const option = ui.$('thread-select').firstElementChild;
+  ui.$('thread-select').focus();
+  await assertQuietPoll();
+  assert.equal(ui.$('thread-select').firstElementChild, option);
+  assert.equal(ui.window.document.activeElement, ui.$('thread-select'));
+  app.relay.disconnect(session);
+  await ui.poll();
+  assert.equal(ui.$('answer-alert').hidden, false, 'real presence changes still alert');
+  await assertQuietPoll();
+});

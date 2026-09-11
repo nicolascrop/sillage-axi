@@ -3,6 +3,7 @@ let report = null;
 let threads = [];
 let activeThread = null;
 let drawnThread = null;
+let drawnThreads = null;
 let bubble = null;
 let polling = false;
 let selectionHandled = false;
@@ -58,10 +59,12 @@ function drawAgent(value) {
   agent = value;
   const failed = threads.some(t => t.request_status === 'failed');
   const unavailable = report && value.state !== 'active';
-  $('answer-alert').hidden = !unavailable && !failed;
-  $('answer-alert').textContent = unavailable
+  const hidden = !unavailable && !failed;
+  const message = unavailable
     ? 'Replies are paused. Return to the conversation that presented this report and ask it to resume answering in Sillage. Your questions and previous replies are saved.'
     : failed ? 'A reply could not be completed. Select the affected thread for the explanation, then send a follow-up to try again.' : '';
+  if ($('answer-alert').hidden !== hidden) $('answer-alert').hidden = hidden;
+  if ($('answer-alert').textContent !== message) $('answer-alert').textContent = message;
 }
 function labels(thread) {
   return [thread.closed ? 'closed' : '', thread.unread ? 'unread' : '',
@@ -70,6 +73,11 @@ function labels(thread) {
 }
 function renderThreads() {
   if (!threads.some(t => t.id === activeThread)) activeThread = threads[0]?.id ?? null;
+  // Do not replace native options or invalidate focus/accessibility state on idle
+  // polls. Presence is independent and must still surface real listening loss.
+  const signature = JSON.stringify([threads, activeThread, report?.id]);
+  if (signature === drawnThreads) { drawAgent(agent); return; }
+  drawnThreads = signature;
   $('thread-count').textContent = `(${threads.length})`;
   const unread = threads.filter(t => t.unread).length;
   const review = threads.filter(t => t.anchor_status === 'needs_review').length;

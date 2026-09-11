@@ -247,3 +247,68 @@ git diff --check
 The commands above are the executable examples for the rename; runtime tests
 use only loopback and disposable `.data/test/` databases. This section records
 validation scope, not npm publication or remote CI status.
+
+## Context handoff and reader chat — browser recovery
+
+Validated in the isolated `fm/sillage-reader-chat-context-browser` worktree with
+Node **v24.18.1** and local Chrome **148**, through `chrome-devtools-axi` attached
+to the existing loopback Chrome. The preserved implementation patch and handoff
+suite were restored only after their SHA-256 checks passed; the browser correction
+is a separate follow-up, not a replacement of that implementation.
+
+```sh
+npm ci --ignore-scripts --no-audit --no-fund
+node --test test/ui.test.js
+npm test
+npm run check
+git diff --check
+```
+
+- **75 tests passed, 0 failed.** Runtime tests use loopback and disposable SQLite
+  databases. Existing HTTP/JSON/JSONL v1, lease/timeout/restart, semantic-ID,
+  historical executable/variable/route aliases, CLI scripts, input limits and
+  local-boundary suites remain passing. Additive handoff/conversation tests cover
+  revision-bound context, guarded replay, continuous polling and follow-up history.
+- Chrome reproduced an idle-poll defect: unchanged polling replaced native thread
+  options and redundantly mutated labels, highlighting and alert attributes every
+  two seconds, invalidating even freshly captured accessibility references. An
+  actual `MutationObserver` recorded eight mutations in an otherwise unchanged
+  draft. Rendering now preserves unchanged conversation UI and independently
+  updates real presence alerts. The new executable DOM regression failed before
+  the fix and passes afterward, checking option identity, focus, draft retention
+  and real listening-loss alerts. Chrome subsequently measured **zero idle
+  mutations**, with the same option node retained.
+- Real screenshots and accessibility snapshots cover **1440×1000** wide and
+  **390×844** narrow: distinct right-hand chat (stacked below on narrow), Markdown
+  heading/bold/list/code, native one-line thread dropdown and keyboard choice,
+  follow-up chronology, explicit citation navigation, and Contents expanded and
+  collapsed at both widths. Native controls were driven from a new snapshot before
+  each interaction, never by reusing a reference after a DOM/page change.
+- Targeted browser `Range` selections crossed inline bold formatting: the saved
+  quote `water for young trees` retained revision 1, paragraph lines 7–7, full
+  passage/neighbors and original block ID. A narrow draft quoted `young trees
+  during dry weeks`. Closing populated local drafts by × and Escape was silent
+  and created no additional conversation. Selection was controlled through the
+  browser DOM; this does not claim native touch-selection coverage.
+- Wide document `clientWidth === scrollWidth === 1425`; narrow both **375** (the
+  scrollbar reduces usable width). Narrow bubble x=12, width=351, right=363:
+  no horizontal overflow. Native thread menu screenshots and the selected
+  four-message conversation confirm actual thread switching, not just markup.
+- A supplied synthetic orchard fixture performed the real JSONL ready/context/
+  connected/request/answer/saved loop, including a second request with original
+  handoff and previous turns. A stopped/reopened service on the same database
+  retained two conversations, three v1 turns, six messages, quotes, citations and
+  handoff. Ending the fixture respondent's input while leaving the service alive
+  produced the actionable “Replies are paused” alert; normal presence was hidden.
+- Before intentional lifecycle interruption, Chrome console had **no messages**;
+  all 259 recorded browser requests used the same `127.0.0.1` origin. No external
+  model, cloud, secret, telemetry, WebSocket or LAN listener was added. Supplied
+  answers prove transport/context delivery, **not inference or understanding** by
+  a real model. Touch input, screen readers and exhaustive browser/CSP behavior
+  remain outside this pass.
+
+Evidence stays gitignored under `.data/chat-evidence/`: wide/narrow reader,
+Markdown, native menu, quote, Contents and listening-loss PNGs; snapshots and
+geometry; before/after poll diagnostics; JSONL logs and SQLite reopen observations;
+full tests/check logs. `preserved/` retains the earlier partial browser evidence
+without treating it as this pass's proof. No reader database/report is committed.
