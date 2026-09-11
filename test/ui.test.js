@@ -345,6 +345,37 @@ test('closed initial save preserves a newly selected passage and the empty chat 
   assert.equal(ui.$('bubble-quote').textContent, 'Keep this.');
 });
 
+test('completed initial save closes its bubble after switching conversations', async t => {
+  const app = await service(t);
+  const doc = app.store.current();
+  const first = app.store.question(questionInput(doc, { client_key: 'existing-one', quote: 'quoted', question: 'Existing first' }));
+  const second = app.store.question(questionInput(doc, { client_key: 'existing-two', quote: 'quoted', question: 'Existing second' }));
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  choose(ui, first.id);
+  const normalFetch = ui.window.fetch;
+  let pending;
+  ui.window.fetch = (path, init) => {
+    if (path === '/api/questions') {
+      pending = { init };
+      return new Promise(resolve => { pending.resolve = resolve; });
+    }
+    return normalFetch(path, init);
+  };
+  ui.$('report').querySelector('p').click();
+  ui.$('question').value = 'Save this question';
+  submit(ui, 'question-form');
+  await waitFor(() => pending);
+  choose(ui, second.id);
+  assert.equal(ui.$('thread-select').value, second.id);
+  assert.equal(ui.$('bubble').hidden, false);
+  pending.resolve(await normalFetch('/api/questions', pending.init));
+  await waitFor(() => ui.$('thread-select').options.length === 3 && ui.$('notice').textContent.includes('Question saved'));
+  assert.equal(ui.$('bubble').hidden, true);
+  assert.equal(ui.$('thread-select').value, second.id);
+  assert.match(ui.$('messages').textContent, /Existing second/);
+});
+
 test('question bubble fits the usable narrow viewport', async t => {
   const app = await service(t);
   const ui = await reader(app.origin, window => {

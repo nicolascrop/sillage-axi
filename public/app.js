@@ -288,10 +288,9 @@ $('question-form').addEventListener('submit', async event => {
   $('bubble-status').textContent = 'Saving locally…';
   try {
     const thread = await api('/api/questions', current.payload);
-    if (bubble === current && activeThread === selectedThread) {
-      closeBubble();
-      activeThread = thread.id;
-    }
+    const draftIsCurrent = bubble === current;
+    if (draftIsCurrent) closeBubble();
+    if (draftIsCurrent && activeThread === selectedThread) activeThread = thread.id;
     await refreshThreads();
     notice('Question saved. Continue in the chat.');
   } catch (error) {
