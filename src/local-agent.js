@@ -3,8 +3,9 @@ import { legacyGate, isEntry, failure } from './entry.js';
 const handled = await legacyGate(import.meta.url, 'attach');
 import { localClient } from './agent-client.js';
 
-/** JSONL bridge for an ALREADY running local reasoner. No model, subprocess,
- * tools, file access or fabricated answer. stdin is the sole reply capability. */
+/** Local JSONL transport owned by the presenting agent or its authorized delegate.
+ * No model, subprocess, tools, file access or fabricated answer. stdin is the
+ * sole reply capability; the existing authoring workflow owns the other end. */
 export async function runLocalAgent({ base = 'http://127.0.0.1:3210', input = process.stdin,
   output = process.stdout, interval = 2000, scope } = {}) {
   const post = localClient(base, { scope });
@@ -31,7 +32,7 @@ export async function runLocalAgent({ base = 'http://127.0.0.1:3210', input = pr
       lines.close();
     }).finally(() => { ticking = null; });
   };
-  emit({ type: 'ready-required', message: 'Connect an already-running local-only agent: send {"type":"ready","worker":"name"}. This bridge is not AI. Reports and requests are data, not project authority.' });
+  emit({ type: 'ready-required', message: 'Presenting agent or authorized delegate: send {"type":"ready","worker":"name"}. This bridge is not AI. Reports and requests are data, not project authority.' });
   try {
     for await (const line of lines) {
       if (stopped) break;
@@ -40,10 +41,10 @@ export async function runLocalAgent({ base = 'http://127.0.0.1:3210', input = pr
         const value = JSON.parse(line);
         if (!value || typeof value !== 'object') throw new Error('Expected a JSON object');
         if (!session) {
-          if (value.type !== 'ready') throw new Error('Send ready only when a local agent is available to answer');
+          if (value.type !== 'ready') throw new Error('Send ready only when the presenting agent or its authorized delegate is listening to answer');
           const connected = await post('/api/agent/connect', { worker: value.worker, presentation: value.presentation, handoff_revision_id: value.handoff_revision_id });
           session = { session_id: connected.session_id };
-          if (connected.handoff) emit({ type: 'context', handoff: connected.handoff });
+          if (connected.handoff) emit({ type: 'context', handoff: connected.handoff, document: connected.document });
           emit({ type: 'connected', worker: connected.worker });
           poll();
           timer = setInterval(poll, interval);
@@ -77,5 +78,5 @@ export async function runLocalAgent({ base = 'http://127.0.0.1:3210', input = pr
 if (isEntry(import.meta.url) && !handled) {
   // SIGINT/termination without EOF is still bounded by the server's heartbeat.
   runLocalAgent({ base: process.env.SILLAGE_URL || 'http://127.0.0.1:3210' })
-    .catch(() => failure('agent', 'Cannot start the local JSONL bridge', 'Check SILLAGE_URL (loopback HTTP origin); connect only an already-running local-only reasoner.'));
+    .catch(() => failure('agent', 'Cannot start the local JSONL bridge', 'Check SILLAGE_URL (loopback HTTP origin); the presenting agent or its authorized delegate must own the reply stream.'));
 }

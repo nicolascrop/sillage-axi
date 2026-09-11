@@ -22,7 +22,8 @@
     "check": "node scripts/check.js",
     "local-agent": "node src/local-agent.js",
     "skill:generate": "node scripts/generate-skill.js",
-    "skill:check": "node scripts/generate-skill.js --check"
+    "skill:check": "node scripts/generate-skill.js --check",
+    "test:browser": "node scripts/browser-check.js"
   },
   "dependencies": {
     "@toon-format/toon": "4.1.1",

@@ -11,7 +11,7 @@ npm ci --ignore-scripts
 npm start
 ```
 
-The workflow that authored the report supplies its Markdown and attaches its local respondent before opening **http://127.0.0.1:3210**. The reader needs no import or connection setup. For a standalone fixture, use the explicit CLI import below with `examples/report.md`. Installing dependencies needs a registry connection once; running the app, fake agent, and tests afterward needs **no internet or secrets**. There are no CDN assets or external image requests.
+Presenting a report includes supplying its Markdown/context and attaching the authoring agent (or its explicitly authorized delegate) through the local bridge before opening **http://127.0.0.1:3210**. The reader needs no import or connection setup. For a standalone fixture, use the explicit CLI import below with `examples/report.md`. Installing dependencies needs a registry connection once; running the app, fake agent, and tests afterward needs **no internet or secrets**. There are no CDN assets or external image requests.
 
 For a separate deterministic transport demo, answer **one** queued question in another terminal while no managed agent is connected:
 
@@ -142,20 +142,27 @@ discovery/safety text used by the CLI, so the skill has one source of instructio
 
 ### Using a real local agent
 
-When asked to present its report with Sillage, the **authoring agent owns the handoff**:
+Here **local** describes Sillage's storage and loopback transport, not a model or
+provider requirement. The **authoring agent owns the handoff and answering loop**:
 it supplies the report and the context it already has (subject, repository notes,
-and prior conversation), then maintains an answering loop itself or delegates to an
-already-running local-only subagent. The reader never has to reconstruct that context.
-This is generic to any agent-authored report, not a particular benchmark or repository.
+and prior conversation) as part of presenting the report, then keeps answering
+itself or through its explicitly authorized sub-agent. The reader never reconstructs
+context or manually attaches a separate reasoner. This is generic to every
+agent-authored report, independent of repository, model and harness.
 
-The [handoff contract](docs/local-agent.md#presenting-an-agent-authored-report) supports
+The [handoff contract](docs/local-agent.md#presenting-an-agent-authored-report) provides
 an atomic import plus readiness handshake, or a durable import followed by attachment
-of a subagent to that exact revision. No arbitrary filesystem reads, transcript capture,
-provider selection or inference is added. **Do not connect a cloud-backed assistant.**
-Sillage does not bundle or launch a reasoner. The workflow must keep the local reasoner
-and its streams alive after opening the reader; merely starting a bridge is not enough.
+of a delegate to that exact revision. Attachment automatically delivers the exact
+report and its supplied context, then polls continuously. **The existing authoring
+workflow must actually consume requests and return answers** before presenting the
+reader as ready; a bridge process alone is not an answering agent. Keep that owner
+and its streams alive after opening the reader, or hand over to an authorized delegate.
 
-An existing local agent uses the managed HTTP lifecycle directly or owns this JSONL bridge:
+Sillage adds no arbitrary filesystem reads, transcript capture, model selection,
+model launch or autonomous provider. Authorization stays with the original workflow;
+this transport does not grant disclosure permission to a new provider or delegate.
+
+The presenting agent or its authorized delegate owns the managed HTTP lifecycle or this local JSONL bridge:
 
 ```sh
 node src/local-agent.js
@@ -183,10 +190,10 @@ The default durable store is `.data/sillage.sqlite` relative to the working dire
 
 ## Walkthrough
 
-1. Ask the local agent that produced your report to present it with Sillage. It supplies the report/context and starts listening before opening the reader. Contents on the left is collapsible; the report stays central and chat has its own panel on the right.
-2. Click a passage (or focus it and press Enter), or select part of a paragraph across inline formatting. A short quote narrows the question without losing the full passage, neighbors or original revision. Send **Ask question**: the durable question appears in chat without moving the report. Close an unsent draft with × or Escape directly, with no confirmation.
-3. The agent's reply appears as safe Markdown. Choose another thread from the one-line dropdown, or **Send message** to continue the active conversation once its current turn finishes. Follow-ups retain the original quote and carry the prior turns to the respondent. **Go to passage** is explicit navigation, never a silent scroll or report replacement.
-4. Restart the same service/database: reports, conversation turns, citations, unread state and original snapshots remain. A local draft is temporary; saved conversations are not. Closing a thread is organization, not deletion or cancellation; it remains selectable.
+1. Ask the agent that produced your report to present it with Sillage. It supplies its existing report/context and owns listening before opening the reader; there is no manual respondent setup for you. Contents is collapsible and starts closed on narrow screens, without a persisted preference. The report stays central; chat has its own panel beside it on wide screens and below it on narrow screens.
+2. Click a passage (or focus it and press Enter), or select part of a paragraph across inline formatting. A short quote narrows the question without losing the full passage, neighbors or original revision. Send **Ask question**: a visible **Question saved · View conversation** confirmation links to the durable question without moving the report automatically. Close an unsent draft with × or Escape directly, with no confirmation.
+3. The agent's reply appears as safe Markdown. Choose another conversation from the one-line dropdown or **Find a conversation** for full questions and passage previews. Use **Send message** to continue once its current turn finishes. Quoted context, original source and citations are progressively disclosed, while the start of a new answer stays readable. Follow-ups retain the original quote and carry the prior turns to the respondent. **Go to passage** is explicit navigation, never a silent scroll or report replacement.
+4. Restart the same service/database: reports, conversation turns, citations, unread state and original snapshots remain. A local draft is temporary; saved conversations are not. Closing a conversation is organization, not deletion or cancellation; it remains selectable.
 5. The authoring workflow can publish a guarded new revision through the same API/CLI. Changed or ambiguous passages say **Passage to review** and retain their original snapshot, rather than linking to similar-looking text. A follow-up still refers to that original revision. To discuss new wording, start a question on the new passage.
 
 The existing v1 one-question/one-reply threads remain intact as individual turns.
@@ -212,11 +219,15 @@ Sillage never guesses context or reads a path mentioned in it. Readers reflect a
 imports automatically; polling is not a claim that Sillage watches arbitrary files.
 
 UTF-8 French Markdown is supported without translation or a second-report feature.
+The author can supply optional `language: "fr"` (or another BCP 47 Unicode locale tag)
+in the HTTP import/ready presentation to mark report and original-quote pronunciation
+for assistive technology. Language is revision-bound, never guessed from text;
+the interface stays English. Existing imports may omit it.
 Yuba, Lavish and any other report-authoring repository remain independent and unchanged.
 
 ## Visual direction
 
-**Material Darker Air** is the one implemented direction: anthracite/slate surfaces, restrained indigo, airy hierarchy and spacing, a wider canvas for code/tables, and prose capped at 76ch. Chat is visually separated on the right, stacked below the report on narrow screens with a header link for direct access. Contents can be collapsed to free reading space. The small locally bundled Sillage AXI mark uses no remote asset or font. **Plum & Amber** remains a documented future alternative only, not a second theme or switch.
+**Material Darker Air** is the one implemented direction: anthracite/slate surfaces, restrained indigo, airy hierarchy and spacing, a wider canvas for code/tables, and prose capped at 76ch. Chat is visually separated on the right with one scrolling history and an accessible follow-up; on narrow screens it follows the report and uses page scrolling, with a header link for direct access. Saved-question confirmations and real listening-loss alerts remain visible in the sticky header. Contents starts collapsed on narrow screens and can be toggled without a stored preference. Duplicate chrome/document titles are avoided without changing semantic report passages. Wide tables keep readable columns inside a keyboard-focusable horizontal scroll region. The small locally bundled Sillage AXI mark uses no remote asset or font. **Plum & Amber** remains a documented future alternative only, not a second theme or switch.
 
 ### Standalone icon proposals
 

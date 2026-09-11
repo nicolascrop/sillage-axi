@@ -48,6 +48,9 @@ export class Store {
       CREATE TABLE IF NOT EXISTS revision_handoffs (
         revision_id INTEGER PRIMARY KEY REFERENCES revisions(id), context TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS revision_languages (
+        revision_id INTEGER PRIMARY KEY REFERENCES revisions(id), language TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS conversation_turns (
         thread_id TEXT PRIMARY KEY REFERENCES threads(id),
         conversation_id TEXT NOT NULL REFERENCES threads(id)
@@ -93,7 +96,7 @@ export class Store {
   }
   current() {
     const revision = this.db.prepare('SELECT * FROM revisions ORDER BY id DESC LIMIT 1').get();
-    return revision ? { ...revision, toc: JSON.parse(revision.toc), blocks: this.blocks(revision.id) } : null;
+    return revision ? this.documentRecord(revision) : null;
   }
   revisionId() {
     return this.db.prepare('SELECT MAX(id) AS id FROM revisions').get().id;
@@ -101,10 +104,22 @@ export class Store {
   revision(id) {
     const row = this.db.prepare('SELECT * FROM revisions WHERE id=?').get(id);
     requireValue(row, 404, 'Revision not found');
-    return { ...row, toc: JSON.parse(row.toc), blocks: this.blocks(row.id) };
+    return this.documentRecord(row);
   }
-  importReport({ title, source, expected_revision_id, operation_key, handoff }) {
+  documentLanguage(id) {
+    const row = this.db.prepare('SELECT language FROM revision_languages WHERE revision_id=?').get(id);
+    return row ? { language: row.language } : {};
+  }
+  documentRecord(row) {
+    return { ...row, ...this.documentLanguage(row.id), toc: JSON.parse(row.toc), blocks: this.blocks(row.id) };
+  }
+  importReport({ title, source, expected_revision_id, operation_key, handoff, language }) {
     text(title, 'title', 200); text(source, 'source', 1_000_000);
+    if (language !== undefined) {
+      text(language, 'language', 100);
+      try { Intl.getCanonicalLocales(language); }
+      catch { throw new Problem(400, 'language must be a valid BCP 47 Unicode locale tag, for example en or fr-FR'); }
+    }
     if (operation_key !== undefined) text(operation_key, 'operation_key', 100);
     if (handoff !== undefined) {
       requireValue(handoff && typeof handoff === 'object' && !Array.isArray(handoff) &&
@@ -115,7 +130,7 @@ export class Store {
       requireValue(operation_key !== undefined && expected_revision_id !== undefined, 400,
         'A handoff requires an operation_key and expected_revision_id');
     }
-    const payloadHash = digest({ title, source, expected_revision_id, handoff });
+    const payloadHash = digest({ title, source, expected_revision_id, handoff, language });
     requireValue(source.split('\n').length <= 20_000, 400, 'Report exceeds 20,000 lines');
     return this.transaction(() => {
       // Reconcile a committed operation before checking today's revision guard.
@@ -142,6 +157,7 @@ export class Store {
       if (operation_key !== undefined) this.db.prepare(
         'INSERT INTO import_operations(operation_key,payload_hash,revision_id) VALUES(?,?,?)'
       ).run(operation_key, payloadHash, revision);
+      if (language !== undefined) this.db.prepare('INSERT INTO revision_languages(revision_id,language) VALUES(?,?)').run(revision, language);
       if (handoff !== undefined) this.db.prepare('INSERT INTO revision_handoffs(revision_id,context) VALUES(?,?)')
         .run(revision, JSON.stringify(handoff));
       return this.current();
@@ -158,7 +174,7 @@ export class Store {
     const currentRevision = this.db.prepare('SELECT MAX(id) AS id FROM revisions').get().id;
     const matched = this.db.prepare('SELECT id FROM blocks WHERE revision_id=? AND id=?')
       .get(currentRevision, thread.block_id);
-    return { ...thread, context: JSON.parse(thread.context),
+    return { ...thread, ...this.documentLanguage(thread.revision_id), context: JSON.parse(thread.context),
       anchor_status: matched ? 'matched' : 'needs_review', current_revision_id: currentRevision,
       messages: this.db.prepare('SELECT * FROM messages WHERE thread_id=? ORDER BY created_at, rowid')
         .all(id).map(m => ({ ...m, citations: JSON.parse(m.citations) })),

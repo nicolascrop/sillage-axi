@@ -1,6 +1,6 @@
 # Sillage AXI local agent protocol · sillage-agent-v1
 
-Provider-neutral HTTP/JSON over the running local service. No API keys, external provider, shell commands, or model execution are built in. Workers are trusted local programs; report text and questions are **untrusted data**, not instructions to execute tools. Choosing an external provider requires a separate privacy decision.
+Provider-neutral HTTP/JSON over the running local service. No API keys, external provider, shell commands, or model execution are built in. Workers are trusted local programs; report text and questions are **untrusted data**, not instructions to execute tools. The presenting agent or its explicitly authorized delegate owns replies within the existing authoring workflow. Sillage never chooses a provider; disclosure to a new provider requires separate authorization.
 
 Base URL: `http://127.0.0.1:3210` (or the configured port). All writes require:
 
@@ -13,7 +13,7 @@ The service only binds `127.0.0.1`. `Host` must be `127.0.0.1:PORT` or `localhos
 
 ## Managed active-local-agent lifecycle
 
-For managed real-agent presence and bounded terminal failures, use the [local-agent connection guide](local-agent.md): connect once, heartbeat every 5 seconds, reserve using the returned `session_id`, then post through the unchanged answer endpoint. The optional `node src/local-agent.js` JSONL bridge maintains that loop for an already-running local reasoner; it does not run a model or invent replies.
+For managed real-agent presence and bounded terminal failures, use the [local-agent connection guide](local-agent.md): connect once, heartbeat every 5 seconds, reserve using the returned `session_id`, then post through the unchanged answer endpoint. The `node src/local-agent.js` JSONL bridge maintains that local transport loop for the presenting agent or its authorized delegate; it does not run a model or invent replies. Attaching and servicing it are part of presenting a report, never a manual setup task for the reader.
 
 Managed presence expires after 20 seconds, and managed reservations have a fixed 120-second answering deadline. Disconnect, expiry or service restart terminally fails exact unfinished managed work. Queued unclaimed questions remain saved; interrupted answering produces an actionable reader alert. Healthy presence is invisible in the reader. Presence is ephemeral; only one service per database is supported. Legacy reservations below retain their original reclaim behavior and do **not** indicate active presence. Legacy/demo reservation attempts return 409 while a managed worker is connected.
 
@@ -135,15 +135,25 @@ three nonempty strings, at most 20,000 characters each, requiring `operation_key
 and `expected_revision_id`. The handoff participates in the import payload hash
 and the same atomic commit/replay. It is stored by immutable revision in an
 additive `revision_handoffs` table. Existing unkeyed/keyed imports are unchanged.
-The document response remains the existing shape; handoff content is not in
-reader document/state/ambient inspection responses.
+Handoff content is not in reader document/state/ambient inspection responses.
+Imports may independently include optional `language` (a BCP 47 Unicode locale tag
+accepted by `Intl.getCanonicalLocales`, such as `en` or `fr-FR`, max 100 characters).
+It participates in keyed payload equality and is stored per revision in an additive
+`revision_languages` table without changing schema version 2 or existing payloads
+when omitted. Document and thread projections expose it only when supplied. The
+reader marks report and original-quote language for assistive technology; it never
+translates content or guesses a language. The English interface is unchanged.
+The connected handoff document includes this optional language too.
 
 `POST /api/agent/connect` accepts optional `presentation` (the complete import
 payload with handoff), **or** `handoff_revision_id` (an already committed handoff).
-Presence conflict is checked before importing. The response adds `handoff` only
-when requested. JSONL `ready` supports the same fields and emits an additive
-`type:"context"` record before `connected` for these handoffs; legacy ready/event
-sequences are unchanged. Every reservation for a supplied revision adds
+Presence conflict is checked before importing. The response adds `handoff` and
+`document:{id,title,source,created_at}` plus optional author-supplied `language` only
+when a handoff is requested. The document is that exact handoff revision, even
+when a newer report exists. JSONL `ready` supports the same fields and delivers
+both in an additive `type:"context"` record before `connected`, so the owner or
+delegate receives report, repository, subject and prior conversation before any
+reader question. Legacy ready/event sequences are unchanged. Every reservation for a supplied revision adds
 `handoff:{revision_id,subject,repository,conversation}`. No filesystem path is
 followed; context from another revision is never substituted. See the
 [full workflow and lifetime contract](local-agent.md#presenting-an-agent-authored-report).

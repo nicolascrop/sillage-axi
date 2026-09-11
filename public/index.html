@@ -9,46 +9,59 @@
   <script type="module" src="/app.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand"><img src="/sillage.svg" width="28" height="28" alt=""><strong>Sillage AXI</strong></div>
-    <div class="toolbar">
-      <button id="toc-toggle" type="button" aria-expanded="true" aria-controls="toc-panel">Contents</button>
-      <a href="#threads-panel">Chat <span id="thread-alert"></span></a>
+  <a class="skip-link" href="#reader">Skip to report</a>
+  <header class="site-header">
+    <div class="topbar">
+      <div class="brand"><img src="/sillage.svg" width="28" height="28" alt=""><strong>Sillage AXI</strong></div>
+      <div class="toolbar">
+        <button id="toc-toggle" type="button" aria-expanded="true" aria-controls="toc-panel">Contents</button>
+        <a href="#threads-panel">Chat <span id="thread-alert"></span></a>
+      </div>
+    </div>
+    <div class="header-feedback">
+      <div class="notice-row"><p id="notice" role="status" aria-live="polite"></p><a id="notice-chat" href="#threads-panel" hidden>View conversation</a><button id="notice-retry" type="button" hidden>Retry question</button></div>
+      <p id="answer-alert" role="alert" hidden></p>
     </div>
   </header>
-  <p id="notice" role="status" aria-live="polite"></p>
-  <p id="answer-alert" role="alert" hidden></p>
   <div class="layout" id="layout">
     <nav id="toc-panel" class="toc-panel" aria-label="Table of contents"><h2>Contents</h2><ol id="toc"></ol></nav>
-    <main id="reader">
-      <div class="report-header"><p class="eyebrow">Your local reading space</p><h1 id="report-title">Your report will appear here</h1><p id="revision" class="muted"></p></div>
-      <p class="hint">Click a passage to ask, or select a short quote. Replies appear in the chat alongside your report.</p>
+    <main id="reader" tabindex="-1">
+      <div class="report-header"><p class="eyebrow">Saved on this PC</p><h1 id="report-title">Your report will appear here</h1><p id="revision" class="muted"></p></div>
+      <p class="hint">Click a passage or select a quote to ask a question. With a keyboard, focus a passage and press Enter.</p>
       <article id="report" aria-label="Markdown report"><p>Return to the conversation that produced your report and ask to present it with Sillage.</p></article>
     </main>
     <aside id="threads-panel" class="threads-panel" aria-label="Passage chat" tabindex="-1">
-      <header class="chat-header"><h2>Conversation <span id="thread-count">(0)</span></h2>
-        <label for="thread-select">Thread</label><select id="thread-select" aria-label="Active thread"><option value="">No conversations yet</option></select>
+      <header class="chat-header"><h2>Chat <span id="thread-count">(0)</span></h2>
+        <label for="thread-select">Conversation</label><select id="thread-select" aria-label="Active conversation"><option value="">No conversations yet</option></select>
+        <p id="conversation-state" class="muted" hidden></p>
+        <details id="conversation-list" hidden><summary>Find a conversation</summary><ul id="conversation-choices"></ul></details>
       </header>
-      <p id="chat-empty" class="muted">Ask about a passage to start a conversation. Your quote and replies stay saved on this PC.</p>
+      <p id="chat-empty" class="muted">Ask about a passage to start. Your questions and replies stay saved on this PC.</p>
       <div id="chat" hidden>
-        <div class="chat-context"><p id="chat-anchor" class="muted"></p><blockquote id="chat-quote"></blockquote><button id="go-source" type="button">Go to passage</button></div>
-        <div id="messages" role="log" aria-label="Conversation history" aria-live="polite"></div>
+        <div class="chat-context">
+          <button id="go-source" type="button">Go to passage</button>
+          <details id="context-details"><summary>Quoted passage and source</summary><p id="chat-anchor" class="muted"></p><blockquote id="chat-quote"></blockquote>
+            <details id="snapshot"><summary>Original source snapshot</summary><pre id="snapshot-text"></pre></details>
+          </details>
+        </div>
+        <div id="messages" role="log" aria-label="Conversation history" aria-live="polite" tabindex="0"></div>
         <p id="chat-status" role="status"></p>
         <form id="followup-form">
-          <label for="followup">Continue this conversation</label><textarea id="followup" rows="3" maxlength="4000" required></textarea>
+          <label for="followup">Continue this conversation</label><textarea id="followup" rows="2" maxlength="4000" required></textarea>
           <button id="followup-submit" type="submit">Send message</button>
           <p id="followup-status" role="status"></p>
         </form>
-        <div class="chat-actions"><button id="mark-read" type="button" hidden>Mark read</button><button id="close-thread" type="button">Close thread</button></div>
-        <details id="snapshot"><summary>Original source snapshot</summary><pre id="snapshot-text"></pre></details>
+        <div class="chat-actions"><button id="mark-read" type="button" hidden>Mark read</button><button id="close-thread" type="button">Close conversation</button></div>
       </div>
     </aside>
   </div>
   <section id="bubble" role="dialog" aria-labelledby="bubble-title" hidden>
     <header><h2 id="bubble-title">Ask about this passage</h2><button id="bubble-close" type="button" aria-label="Close question bubble">×</button></header>
-    <p id="bubble-anchor" class="muted"></p>
-    <blockquote id="bubble-quote"></blockquote>
-    <p id="bubble-status" role="status" aria-live="polite"></p>
+    <div id="bubble-context">
+      <p id="bubble-anchor" class="muted"></p>
+      <blockquote id="bubble-quote"></blockquote>
+      <p id="bubble-status" role="status" aria-live="polite"></p>
+    </div>
     <form id="question-form">
       <label>Your question <textarea id="question" rows="3" maxlength="4000" required></textarea></label>
       <button id="question-submit" type="submit">Ask question</button>

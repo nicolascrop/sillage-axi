@@ -78,7 +78,7 @@ test('reader receives workflow imports; selected quote opens a draft, saved chat
   assert.equal(ui.$('report').querySelector('p'), paragraph);
   const request = app.relay.reserve(session);
   app.store.answer(request.request_id, { lease_token: request.lease_token, status: 'answered',
-    body: '## Answer\n\nUse **local** context.\n\n- First\n- Second\n\n```js\nconst n = 2;\n```\n\n<script>alert(1)</script>\n\n![remote](https://invalid.example/pixel) [unsafe](javascript:alert(1))',
+    body: '## Answer\n\nUse **local** context.\n\n- First\n- Second\n\n| Signal | Meaning |\n|---|---|\n| Water | Keep reserves |\n\n```js\nconst n = 2;\n```\n\n<script>alert(1)</script>\n\n![remote](https://invalid.example/pixel) [unsafe](javascript:alert(1))',
     citations: [{ revision_id: doc.id, block_id: thread.block_id, quote: thread.quote }] });
   app.relay.answered(request.request_id);
   await ui.poll();
@@ -87,6 +87,11 @@ test('reader receives workflow imports; selected quote opens a draft, saved chat
   assert.equal(ui.$('messages').querySelector('.markdown strong').textContent, 'local');
   assert.equal(ui.$('messages').querySelectorAll('.markdown li').length, 2);
   assert.match(ui.$('messages').querySelector('.markdown pre code').textContent, /const n = 2/);
+  const responseTable = ui.$('messages').querySelector('.markdown .table-scroll');
+  assert.equal(responseTable.tabIndex, 0);
+  assert.equal(responseTable.getAttribute('role'), 'region');
+  assert.match(responseTable.getAttribute('aria-label'), /scroll horizontally/);
+  assert.equal(responseTable.querySelector('table').textContent.includes('Keep reserves'), true);
   assert.match(ui.$('messages').textContent, /<script>Is this safe\?<\/script>/);
   assert.equal(ui.$('messages').querySelectorAll('.citation').length, 1);
   assert.equal(ui.$('messages').querySelectorAll('[data-block-id]').length, 0, 'reply headings cannot impersonate report anchors');
@@ -206,7 +211,7 @@ test('live revisions keep safe reading anchors, old drafts and chat provenance w
     window.HTMLElement.prototype.getBoundingClientRect = function () {
       const changed = window.document.getElementById('report').textContent.includes('modifié');
       const top = this.textContent === 'Passage stable.' ? (changed ? 160 : 90) : 500;
-      return { top, bottom: this.classList.contains('topbar') ? 70 : top + 30, right: 800 };
+      return { top, bottom: this.classList.contains('site-header') ? 70 : top + 30, right: 800 };
     };
   });
   t.after(() => ui.dom.window.close());
@@ -226,9 +231,9 @@ test('live revisions keep safe reading anchors, old drafts and chat provenance w
   assert.equal(thread.revision_id, first.id);
   await runFakeAgent(app.origin); await ui.poll();
   ui.$('close-thread').click();
-  await waitFor(() => ui.$('close-thread').textContent === 'Reopen thread');
+  await waitFor(() => ui.$('close-thread').textContent === 'Reopen conversation');
   assert.equal(ui.$('thread-select').options.length, 1);
-  assert.match(ui.$('thread-select').textContent, /passage to review/);
+  assert.match(ui.$('conversation-state').textContent, /passage to review/);
   app.store.importReport({ title: 'Rapport', source: first.source }); await ui.poll();
   assert.equal(app.store.thread(thread.id).anchor_status, 'needs_review');
   assert.equal(ui.$('report').querySelector('.selected-passage'), null);
@@ -376,6 +381,38 @@ test('completed initial save closes its bubble after switching conversations', a
   assert.match(ui.$('messages').textContent, /Existing second/);
 });
 
+test('closed initial save keeps its exact failed payload available for retry', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const normalFetch = ui.window.fetch;
+  const payloads = [];
+  let attempt = 0;
+  let pending;
+  ui.window.fetch = (path, init) => {
+    if (path === '/api/questions') {
+      payloads.push(JSON.parse(init.body));
+      attempt += 1;
+      if (attempt === 1) return new Promise((resolve, reject) => { pending = { resolve, reject }; });
+    }
+    return normalFetch(path, init);
+  };
+  ui.$('report').querySelector('p').click();
+  ui.$('question').value = 'Keep this exact question';
+  submit(ui, 'question-form');
+  await waitFor(() => pending);
+  ui.$('bubble-close').click();
+  pending.reject(new Error('Disconnected while saving'));
+  await waitFor(() => !ui.$('notice-retry').hidden);
+  assert.equal(ui.$('bubble').hidden, true);
+  assert.match(ui.$('notice').textContent, /exact question is preserved/);
+  ui.$('notice-retry').click();
+  await waitFor(() => ui.$('notice').textContent === 'Question saved.');
+  assert.deepEqual(payloads[1], payloads[0]);
+  assert.equal(app.store.threads()[0].messages[0].body, 'Keep this exact question');
+  assert.equal(ui.$('notice-retry').hidden, true);
+});
+
 test('question bubble fits the usable narrow viewport', async t => {
   const app = await service(t);
   const ui = await reader(app.origin, window => {
@@ -419,4 +456,205 @@ test('unchanged polls preserve the native thread choices, focus and draft withou
   await ui.poll();
   assert.equal(ui.$('answer-alert').hidden, false, 'real presence changes still alert');
   await assertQuietPoll();
+});
+
+test('narrow arrival collapses Contents without persistence and empty chat has a visible option', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin, window => { window.innerWidth = 390; });
+  t.after(() => ui.dom.window.close());
+  assert.equal(ui.$('toc-panel').hidden, true);
+  assert.equal(ui.$('toc-toggle').getAttribute('aria-expanded'), 'false');
+  assert.equal(ui.$('thread-select').selectedOptions[0]?.textContent, 'No conversations yet');
+  ui.$('toc-toggle').click(); await ui.poll();
+  assert.equal(ui.$('toc-panel').hidden, false, 'explicit reader choice survives polling');
+  assert.equal(ui.window.localStorage.length, 0);
+});
+
+test('question placement uses actual bubble height and the visible viewport', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin, window => {
+    window.innerWidth = 390; window.innerHeight = 844;
+    window.HTMLElement.prototype.getBoundingClientRect = function () {
+      if (this.id === 'bubble') return { height: Math.min(520, parseFloat(this.style.maxHeight) || 520) };
+      if (this.classList.contains('site-header')) return { bottom: 112, height: 112 };
+      if (this.id === 'question-submit') {
+        const bubble = window.document.getElementById('bubble');
+        const bottom = parseFloat(bubble.style.top) + bubble.getBoundingClientRect().height;
+        return { top: bottom - 48, bottom };
+      }
+      return { top: 422, right: 360, bottom: 470 };
+    };
+  });
+  t.after(() => ui.dom.window.close());
+  ui.$('report').querySelector('p').click();
+  const e = ui.$('bubble');
+  assert.ok(parseFloat(e.style.top) + e.getBoundingClientRect().height <= 832);
+  ui.window.innerHeight = 400;
+  ui.window.dispatchEvent(new ui.window.Event('resize'));
+  assert.ok(parseFloat(e.style.top) + e.getBoundingClientRect().height <= 388);
+  assert.ok(ui.$('question-submit').getBoundingClientRect().bottom <= 388);
+  assert.equal(ui.window.document.activeElement, ui.$('question'));
+});
+
+test('narrow answer arrival reveals its beginning through page scrolling', async t => {
+  const app = await service(t);
+  const thread = app.store.question(questionInput(app.store.current(), { quote: 'quoted', question: 'Why?' }));
+  const session = app.relay.connect({ worker: 'original-author' });
+  const ui = await reader(app.origin, window => {
+    window.innerWidth = 390;
+    window.HTMLElement.prototype.scrollIntoView = function () {
+      window.lastRevealedMessage = this.dataset.messageId;
+    };
+  });
+  t.after(() => ui.dom.window.close());
+  const request = app.relay.reserve(session);
+  app.store.answer(request.request_id, { lease_token: request.lease_token, status: 'answered', body: 'The answer starts here.', citations: [] });
+  app.relay.answered(request.request_id);
+  await ui.poll();
+  const answer = app.store.conversation(thread.id).messages.at(-1);
+  assert.equal(ui.window.lastRevealedMessage, answer.id);
+  app.relay.disconnect(session);
+});
+
+test('narrow question save keeps the report passage in place until an answer arrives', async t => {
+  const app = await service(t);
+  const session = app.relay.connect({ worker: 'original-author' });
+  const ui = await reader(app.origin, window => {
+    window.innerWidth = 390;
+    window.HTMLElement.prototype.scrollIntoView = function () {
+      window.lastRevealedMessage = this.dataset.messageId;
+    };
+  });
+  t.after(() => ui.dom.window.close());
+  ui.$('report').querySelector('p').click();
+  ui.$('question').value = 'Keep the report in place';
+  submit(ui, 'question-form');
+  await waitFor(() => ui.$('chat-status').textContent.includes('waiting'));
+  const thread = app.store.threads()[0];
+  assert.equal(ui.window.lastRevealedMessage, undefined);
+  const request = app.relay.reserve(session);
+  app.store.answer(request.request_id, { lease_token: request.lease_token, status: 'answered', body: 'The answer begins here.', citations: [] });
+  app.relay.answered(request.request_id);
+  await ui.poll();
+  const answer = app.store.conversation(thread.id).messages.at(-1);
+  assert.equal(ui.window.lastRevealedMessage, answer.id);
+  app.relay.disconnect(session);
+});
+
+test('saved confirmation offers explicit navigation; quotes remain exact but display readable text', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  ui.$('report').querySelector('p').click();
+  assert.equal(ui.$('bubble-quote').textContent, 'An exact quoted passage.');
+  ui.$('question').value = 'Why?'; submit(ui, 'question-form');
+  await waitFor(() => ui.$('notice').textContent.includes('Question saved'));
+  const thread = app.store.threads()[0];
+  assert.equal(thread.quote, 'An exact **quoted** passage.');
+  assert.equal(ui.$('chat-quote').textContent, 'An exact quoted passage.');
+  assert.equal(ui.$('notice-chat').hidden, false);
+  assert.equal(ui.window.lastScrolled, undefined);
+  ui.$('notice-chat').click();
+  await waitFor(() => ui.window.lastScrolled === 'threads-panel');
+  assert.equal(ui.window.document.activeElement, ui.$('threads-panel'));
+});
+
+test('full conversation chooser distinguishes long questions without replacing the native control on idle polls', async t => {
+  const app = await service(t);
+  const doc = app.store.current();
+  const prefix = 'A long shared introduction '.repeat(5);
+  const one = app.store.question(questionInput(doc, { question: prefix + 'FIRST', client_key: 'full-one', quote: 'quoted' }));
+  const two = app.store.question(questionInput(doc, { question: prefix + 'SECOND', client_key: 'full-two', quote: 'quoted' }));
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const buttons = [...ui.$('conversation-choices').querySelectorAll('button')];
+  assert.equal(buttons.length, 2);
+  const first = buttons.find(b => b.textContent.includes('FIRST'));
+  assert.ok(first.textContent.includes(prefix));
+  ui.$('conversation-list').open = true;
+  first.click();
+  assert.equal(ui.$('thread-select').value, one.id);
+  assert.equal(ui.$('conversation-list').open, false);
+  assert.equal(ui.window.document.activeElement, ui.$('thread-select'));
+  choose(ui, two.id);
+  assert.match(ui.$('messages').textContent, /SECOND/);
+});
+
+test('changing conversation state restores focus to native and full-list controls', async t => {
+  const app = await service(t);
+  const doc = app.store.current();
+  const one = app.store.question(questionInput(doc, { question: 'First', client_key: 'focus-one', quote: 'quoted' }));
+  const two = app.store.question(questionInput(doc, { question: 'Second', client_key: 'focus-two', quote: 'quoted' }));
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  ui.$('thread-select').focus();
+  app.store.updateConversation(one.id, { closed: true });
+  await ui.poll();
+  assert.equal(ui.window.document.activeElement, ui.$('thread-select'));
+  const choice = [...ui.$('conversation-choices').querySelectorAll('button')]
+    .find(button => button.dataset.threadId === two.id);
+  choice.focus();
+  app.store.updateConversation(two.id, { closed: true });
+  await ui.poll();
+  assert.equal(ui.window.document.activeElement.dataset.threadId, two.id);
+});
+
+test('revision refresh restores focus and horizontal position to a report table region', async t => {
+  const source = '# Report\n\n| Column | Detail |\n|---|---|\n| Stable | Table |';
+  const app = await service(t, source);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const region = ui.$('report').querySelector('.table-scroll');
+  region.focus();
+  region.scrollLeft = 27;
+  const blockId = region.querySelector('table').dataset.blockId;
+  app.store.importReport({ title: 'Report', source: `${source}\n\nA new note.` });
+  await ui.poll();
+  const refreshedRegion = ui.$('report').querySelector('.table-scroll');
+  assert.equal(ui.window.document.activeElement, refreshedRegion);
+  assert.equal(refreshedRegion.querySelector('table').dataset.blockId, blockId);
+  assert.equal(refreshedRegion.scrollLeft, 27);
+});
+
+test('thread refresh restores focus and horizontal position to a response table region', async t => {
+  const app = await service(t);
+  const doc = app.store.current();
+  const thread = app.store.question(questionInput(doc, { question: 'Explain the table', client_key: 'response-table-focus', quote: 'quoted' }));
+  const session = app.relay.connect({ worker: 'original-author' });
+  const request = app.relay.reserve(session);
+  app.store.answer(request.request_id, { lease_token: request.lease_token, status: 'answered', body: '| Signal | Meaning |\n|---|---|\n| Water | Keep reserves |', citations: [] });
+  app.relay.answered(request.request_id);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const region = ui.$('messages').querySelector('.table-scroll');
+  region.focus();
+  region.scrollLeft = 19;
+  app.store.updateConversation(thread.id, { closed: true });
+  await ui.poll();
+  const refreshedRegion = ui.$('messages').querySelector('.table-scroll');
+  assert.equal(ui.window.document.activeElement, refreshedRegion);
+  assert.equal(refreshedRegion.scrollLeft, 19);
+  app.relay.disconnect(session);
+});
+
+test('author-supplied report language follows exact revisions without translating the English interface', async t => {
+  const app = await service(t, null);
+  app.store.importReport({ title: 'Rapport', source: '# Rapport\n\nUn passage français.', language: 'fr' });
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  assert.equal(ui.window.document.documentElement.lang, 'en');
+  assert.equal(ui.$('report').lang, 'fr');
+  assert.equal(ui.$('toc').lang, 'fr');
+  assert.equal(ui.$('report-title').lang, 'fr');
+  assert.equal(ui.$('report-title').hidden, true);
+  ui.$('report').querySelector('p').click();
+  assert.equal(ui.$('bubble-quote').lang, 'fr');
+  ui.$('question').value = 'Pourquoi ?'; submit(ui, 'question-form');
+  await waitFor(() => ui.$('notice').textContent === 'Question saved.');
+  assert.equal(ui.$('chat-quote').lang, 'fr');
+  app.store.importReport({ title: 'English', source: '# English\n\nA different passage.', language: 'en' });
+  await ui.poll();
+  assert.equal(ui.$('report').lang, 'en');
+  assert.equal(ui.$('chat-quote').lang, 'fr');
+  assert.equal(ui.$('snapshot-text').lang, 'fr');
 });

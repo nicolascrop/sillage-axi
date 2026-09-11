@@ -11,7 +11,7 @@ import { temporaryDb, questionInput } from '../test-support/helpers.js';
 const context = { subject: 'Review of an orchard planning algorithm', repository: 'Authorized repository notes: planner.js allocates plots; do not read /private.',
   conversation: 'The author and reader previously agreed to prioritize drought resilience. This is supplied context, not permission to execute tools.' };
 const presentation = { title: 'Orchard report', source: '# Orchard\n\nReserve water for young trees.',
-  expected_revision_id: null, operation_key: 'orchard-1', handoff: context };
+  expected_revision_id: null, operation_key: 'orchard-1', handoff: context, language: 'en' };
 const reply = request => ({ lease_token: request.lease_token, status: 'answered', body: '**Keep reserves.**\n\n- Young trees need water.\n\n`quota = 2`',
   citations: [{ revision_id: request.document.id, block_id: request.block.id, quote: request.quote }] });
 async function waitFor(condition) {
@@ -69,6 +69,10 @@ test('ready presentation automatically imports, carries context to the responder
   await waitFor(() => events.some(e => e.type === 'connected'));
   assert.deepEqual(events.map(e => e.type), ['ready-required', 'context', 'connected']);
   assert.deepEqual(events[1].handoff, { revision_id: 1, ...context });
+  assert.equal(events[1].document.source, presentation.source, 'delegate receives the report before any reader question');
+  assert.equal(events[1].document.title, presentation.title);
+  assert.equal(events[1].document.id, 1);
+  assert.equal(events[1].document.language, 'en');
   assert.equal(app.relay.status().state, 'active');
   const doc = app.store.current();
   await assert.rejects(post('/api/agent/connect', { worker: 'other', presentation: { ...presentation, operation_key: 'other' } }), /409/);
@@ -91,8 +95,11 @@ test('ready presentation automatically imports, carries context to the responder
   await waitFor(() => events.filter(e => e.type === 'saved').length === 2);
   input.end(); await running;
   assert.equal(app.store.conversation(thread.id).messages.length, 4);
+  app.store.importReport({ title: 'Newer revision', source: 'Changed report after the authoring handoff.' });
   const connected = await post('/api/agent/connect', { worker: 'resumed-subagent', handoff_revision_id: doc.id });
   assert.deepEqual(connected.handoff, { revision_id: doc.id, ...context });
+  assert.equal(connected.document.source, presentation.source, 'resume delivers the exact original revision, not the latest report');
+  assert.equal(connected.document.id, doc.id);
   await post('/api/agent/disconnect', connected);
 });
 
@@ -137,5 +144,23 @@ test('continuous chat adds linked v1 turns without rewriting original threads, l
     assert.equal(store.conversation(root.id).request_status, 'failed');
     assert.equal(store.conversation(root.id).unread, 1);
     assert.equal(store.conversation(root.id).messages.length, 6);
+  } finally { store.close(); }
+});
+
+test('optional report language is durable, guarded and never guessed from content', t => {
+  const path = temporaryDb(t);
+  let store = new Store(path);
+  const input = { ...presentation, language: 'fr-FR' };
+  const first = store.importReport(input);
+  assert.equal(first.language, 'fr-FR');
+  assert.equal(store.importReport(input).id, first.id);
+  assert.throws(() => store.importReport({ ...input, language: 'en' }), { status: 409 });
+  assert.throws(() => store.importReport({ ...input, operation_key: 'invalid-language', language: 'not a tag!' }), { status: 400 });
+  store.close(); store = new Store(path);
+  try {
+    assert.equal(store.current().language, 'fr-FR');
+    const second = store.importReport({ title: 'No language declared', source: 'Un passage français.' });
+    assert.equal(second.language, undefined);
+    assert.equal(store.revision(first.id).language, 'fr-FR');
   } finally { store.close(); }
 });
