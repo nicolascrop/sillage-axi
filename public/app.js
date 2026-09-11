@@ -12,6 +12,8 @@ let agent = { state: 'unavailable' };
 const drafts = new Map();
 const questionDrafts = new Map();
 let savedNoticeThread = null;
+let workspaceView = 'report';
+let hiddenReportScroll = 0;
 
 async function api(path, body, method = 'POST') {
   const response = await fetch(path, { ...(body === undefined ? {} : {
@@ -170,7 +172,7 @@ function drawActivity() {
   if ($('chat-status').dataset.state !== tone) $('chat-status').dataset.state = tone;
 }
 function labels(thread) {
-  return [thread.closed ? 'closed' : '', thread.unread ? 'unread' : '',
+  return [thread.closed ? 'closed' : '',
     thread.anchor_status === 'needs_review' ? 'passage to review' : '',
     thread.request_status === 'failed' ? 'reply failed' : ''].filter(Boolean).join(' · ');
 }
@@ -187,12 +189,9 @@ function renderThreads() {
   const signature = JSON.stringify([threads, activeThread, report?.id]);
   if (signature === drawnThreads) { drawAgent(agent); return; }
   drawnThreads = signature;
-  $('thread-count').textContent = `(${threads.length})`;
-  const unread = threads.filter(t => t.unread).length;
-  const review = threads.filter(t => t.anchor_status === 'needs_review').length;
-  $('thread-alert').textContent = [unread ? `${unread} unread` : '', review ? `${review} to review` : ''].filter(Boolean).join(' · ');
+  $('new-reply').hidden = !threads.some(t => t.unread);
   $('thread-select').replaceChildren(...threads.map(thread => {
-    const option = node('option', compact(`${thread.messages[0].body}`, 52) + ` · ${thread.id.slice(0, 8)}`);
+    const option = node('option', compact(thread.messages[0].body, 64));
     option.value = thread.id;
     return option;
   }));
@@ -211,7 +210,7 @@ function renderThreads() {
     const preview = node('span', compact(readableQuote(thread.quote, thread.context.block), 160), 'muted');
     preview.lang = thread.language || '';
     button.append(node('strong', thread.messages[0].body), preview,
-      node('span', `Revision ${thread.revision_id} · ${labels(thread) || 'Saved'}`, 'muted'));
+      node('span', [`Original revision ${thread.revision_id}`, thread.unread ? 'New reply' : '', labels(thread) || 'Saved'].filter(Boolean).join(' · '), 'muted'));
     button.addEventListener('click', () => {
       selectThread(thread.id);
       $('conversation-list').open = false;
@@ -303,22 +302,20 @@ function drawThread() {
   $('chat-anchor').classList.toggle('review', thread.anchor_status === 'needs_review');
   $('chat-quote').textContent = readableQuote(thread.quote, thread.context.block);
   $('chat-quote').lang = thread.language || '';
-  $('context-label').textContent = `Passage · revision ${thread.revision_id}`;
+  $('context-label').textContent = 'Quoted passage';
   $('context-preview').textContent = compact(readableQuote(thread.quote, thread.context.block), 100);
   $('context-preview').lang = thread.language || '';
   $('snapshot-text').lang = thread.language || '';
   const log = $('messages');
   const sameConversation = log.dataset.conversationId === thread.id;
-  const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  const scroll = chatScroller();
+  const atEnd = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 40;
   const lastMessage = sameConversation ? log.lastElementChild : null;
   const previousEnd = thread.messages.findIndex(message => message.id === lastMessage?.dataset.messageId);
-  const rect = lastMessage?.getBoundingClientRect();
-  const headerBottom = document.querySelector('.site-header').getBoundingClientRect().bottom;
-  const readingLatest = rect && rect.bottom > headerBottom && rect.top < innerHeight;
   if (!sameConversation) {
     log.replaceChildren();
     log.dataset.conversationId = thread.id;
-    log.scrollTop = 0;
+    scroll.scrollTop = 0;
     $('latest-reply').hidden = true;
   }
   // Saved turns are immutable. Append only new messages so expanded citations,
@@ -340,17 +337,23 @@ function drawThread() {
       enhanceTables(body, 'Response table');
       item.append(body);
     } else item.append(node('p', message.body));
-    for (const [index, citation] of message.citations.entries()) {
+    for (const citation of message.citations) {
       const block = citation.block_id === thread.block_id ? thread.context.block : null;
       const citationDetails = node('details', undefined, 'citation-details');
-      const link = node('button', `Go to cited passage · revision ${citation.revision_id}`, 'citation');
+      const link = $('go-source').cloneNode(true);
+      link.removeAttribute('id');
+      link.hidden = false;
+      link.classList.add('citation');
+      link.setAttribute('aria-label', 'Go to cited passage');
+      link.title = 'Go to cited passage';
       const quote = node('blockquote', readableQuote(citation.quote, block));
       if (citation.revision_id === thread.revision_id) quote.lang = thread.language || '';
-      citationDetails.append(node('summary', `Source ${index + 1} · revision ${citation.revision_id}`), quote);
+      citationDetails.append(node('summary', 'Citation'),
+        node('p', `Original revision ${citation.revision_id}`, 'muted'), quote);
       link.type = 'button';
       link.addEventListener('click', () => {
         const target = passageElement(citation.block_id);
-        if (target) { target.scrollIntoView({ block: 'center' }); target.focus({ preventScroll: true }); }
+        if (target) navigatePassage(target);
         else notice(`Historical citation (revision ${citation.revision_id}); no current match. Exact quote is preserved in the conversation.`);
       });
       citationDetails.append(link);
@@ -358,19 +361,17 @@ function drawThread() {
     }
     log.append(item);
   }
-  // Wide chat owns its scroll. In page-scrolling layouts, only follow an answer
-  // when its preceding turn is on screen; never pull a reader out of the report.
+  // Follow only within a visible chat at its end. Report position and keyboard
+  // inspection of earlier history/context never move when a reply arrives.
   const newAnswer = thread.messages.findIndex((message, index) => index > previousEnd && message.role === 'agent');
   if (sameConversation && previousEnd >= 0 && newAnswer >= 0) {
-    const inspectingHistory = log.contains(document.activeElement) && document.activeElement !== log
+    const inspectingHistory = $('chat-scroll').contains(document.activeElement) && document.activeElement !== $('chat-scroll')
       && !lastMessage?.contains(document.activeElement);
-    const followingPage = readingLatest && !bubble && !$('reader').contains(document.activeElement);
-    const reveal = !inspectingHistory && (usesPageScroll() ? followingPage : atEnd);
+    const reveal = !$('threads-panel').hidden && !inspectingHistory && atEnd && !bubble;
     if (reveal) revealMessage(log.children[newAnswer]);
     $('latest-reply').hidden = Boolean(reveal);
   }
   $('go-source').hidden = thread.anchor_status !== 'matched' || !passageElement(thread.block_id);
-  $('mark-read').hidden = !thread.unread;
   $('close-thread').textContent = thread.closed ? 'Reopen conversation' : 'Close conversation';
   $('snapshot-text').textContent = `Revision ${thread.revision_id}, lines ${thread.context.block.start_line}–${thread.context.block.end_line}\n\n${thread.context.block.source}`;
   drawComposer();
@@ -383,45 +384,87 @@ function drawComposer() {
   $('followup').value = draft?.text || '';
   $('followup').disabled = Boolean(draft?.payload);
   $('followup-submit').disabled = Boolean(draft?.saving) || (busy && !draft?.payload);
-  $('followup-submit').textContent = draft?.payload && !draft.saving ? 'Retry message' : 'Send message';
+  const label = draft?.saving ? 'Saving message' : draft?.payload ? 'Retry message' : 'Send message';
+  $('followup-submit').setAttribute('aria-label', label);
+  $('followup-submit').title = label;
+  $('followup-form').setAttribute('aria-busy', String(Boolean(draft?.saving)));
   setText('followup-status', draft?.error || (draft?.saving ? 'Saving…' : ''));
 }
-function usesPageScroll() {
-  const style = getComputedStyle($('messages'));
-  return innerWidth <= 700 || innerHeight <= 800 || (style.overflowY || style.overflow) === 'visible';
+// Short viewports scroll the whole chat instead of trapping its composer. There
+// is still exactly one vertical scroller per workspace pane (no page scrolling).
+function chatScroller() {
+  return innerHeight <= 600 ? $('threads-panel') : $('chat-scroll');
 }
 function revealMessage(element) {
-  const log = $('messages');
   if (!element) return;
-  if (usesPageScroll()) element.scrollIntoView({ block: 'start' });
-  else log.scrollTop = element.offsetTop - log.firstElementChild.offsetTop;
+  const scroll = chatScroller();
+  scroll.scrollTop += element.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 12;
+}
+function showWorkspace(view, focus = true) {
+  workspaceView = view;
+  syncWorkspace();
+  if (focus) $(view === 'chat' ? 'threads-panel' : 'reader').focus({ preventScroll: true });
+}
+function syncWorkspace() {
+  const narrow = innerWidth <= 700;
+  const hideReport = narrow && workspaceView !== 'report';
+  if (hideReport && !$('reader').hidden) hiddenReportScroll = $('reader').scrollTop;
+  const wasHidden = $('reader').hidden;
+  $('reader').hidden = hideReport;
+  if (wasHidden && !hideReport) $('reader').scrollTop = hiddenReportScroll;
+  $('threads-panel').hidden = narrow && workspaceView !== 'chat';
+  for (const view of ['report', 'chat']) {
+    const link = $(`show-${view}`);
+    if (narrow && workspaceView === view) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  }
+}
+function closeContents() {
+  $('toc-panel').hidden = true;
+  $('toc-toggle').setAttribute('aria-expanded', 'false');
+  $('layout').classList.add('toc-collapsed');
+}
+function navigatePassage(target) {
+  if (innerWidth <= 900) closeContents();
+  showWorkspace('report', false);
+  target.scrollIntoView({ block: 'center' });
+  target.focus({ preventScroll: true });
+}
+async function acknowledgeReplies(thread) {
+  if (!thread?.unread) return;
+  // Acknowledge only immutable answered turns actually displayed, not an entire
+  // conversation: a late reply racing this action must keep its new-reply flag.
+  const turns = new Set(thread.messages.filter(m => m.role === 'agent').map(m => m.thread_id));
+  try {
+    for (const id of turns) await api(`/api/threads/${id}`, { unread: false }, 'PATCH');
+    await refreshThreads();
+  } catch (error) { notice(error.message); }
 }
 async function selectThread(id, markRead = true) {
   if (activeThread !== id) { $('context-details').open = false; $('snapshot').open = false; $('conversation-actions').open = false; }
+  showWorkspace('chat', false);
   activeThread = id;
   drawnThread = null;
   renderThreads();
   revealMessage($('messages').querySelector('.message.agent:last-of-type') || $('messages').lastElementChild);
   $('latest-reply').hidden = true;
-  if (markRead && threads.find(t => t.id === id)?.unread) {
-    try { await api(`/api/conversations/${id}`, { unread: false }, 'PATCH'); await refreshThreads(); }
-    catch (error) { notice(error.message); }
-  }
+  if (markRead) await acknowledgeReplies(threads.find(t => t.id === id));
 }
 function updateDocument(value) {
   if (report?.id === value?.id) return;
-  const y = window.scrollY;
+  const reader = $('reader');
+  const y = reader.hidden ? hiddenReportScroll : reader.scrollTop;
   const focus = focusDescriptor();
   const safeIds = new Set(value?.blocks.map(b => b.id));
-  const top = document.querySelector('.site-header').getBoundingClientRect().bottom + 16;
+  const top = reader.getBoundingClientRect().top + 16;
   const candidates = [...$('report').querySelectorAll('[data-block-id]')]
     .map(element => ({ id: element.dataset.blockId, top: element.getBoundingClientRect().top }))
     .filter(item => safeIds.has(item.id));
   candidates.sort((a, b) => Math.abs(a.top - top) - Math.abs(b.top - top));
-  const anchor = candidates[0];
+  const anchor = !reader.hidden && candidates[0];
   renderDocument(value);
-  if (anchor) window.scrollBy(0, passageElement(anchor.id).getBoundingClientRect().top - anchor.top);
-  else window.scrollTo(0, y);
+  if (reader.hidden) hiddenReportScroll = y;
+  else reader.scrollTop = y + (anchor ? passageElement(anchor.id).getBoundingClientRect().top - anchor.top : 0);
   restoreFocus(focus);
   if (bubble) {
     bubble.target = passageElement(bubble.blockId);
@@ -431,7 +474,7 @@ function updateDocument(value) {
     $('bubble-anchor').classList.toggle('review', !bubble.target);
     placeBubble(bubble.target);
   }
-  notice(`Revision ${value.id} loaded automatically. ${anchor ? 'Reading position kept at a safely matched passage.' : 'No safe reading anchor; approximate scroll position kept.'} Original conversation context is preserved.`);
+  notice(`Report updated. ${anchor ? 'Reading position kept at a matched passage.' : 'Approximate reading position kept; no safe visible anchor.'}`);
 }
 async function refreshThreads() {
   if (polling) return;
@@ -448,24 +491,19 @@ async function refreshThreads() {
   } finally { polling = false; }
 }
 
-if (innerWidth <= 700) {
-  $('toc-panel').hidden = true;
-  $('toc-toggle').setAttribute('aria-expanded', 'false');
-  $('layout').classList.add('toc-collapsed');
-}
-function sizeHeader() {
-  const height = document.querySelector('.site-header').getBoundingClientRect().height;
-  document.documentElement.style.setProperty('--header-height', `${height}px`);
+closeContents();
+syncWorkspace();
+function positionOpenBubble() {
   if (bubble) placeBubble(bubble.target);
 }
-if (window.ResizeObserver) new ResizeObserver(sizeHeader).observe(document.querySelector('.site-header'));
+if (window.ResizeObserver) new ResizeObserver(positionOpenBubble).observe(document.querySelector('.site-header'));
 $('notice-chat').addEventListener('click', async event => {
   event.preventDefault();
   if (savedNoticeThread && threads.some(t => t.id === savedNoticeThread)) await selectThread(savedNoticeThread);
-  $('threads-panel').focus({ preventScroll: true });
-  $('threads-panel').scrollIntoView({ block: 'start' });
+  showWorkspace('chat');
 });
 $('toc-toggle').addEventListener('click', () => {
+  if (innerWidth <= 700) showWorkspace('report', false);
   $('toc-panel').hidden = !$('toc-panel').hidden;
   $('toc-toggle').setAttribute('aria-expanded', String(!$('toc-panel').hidden));
   $('layout').classList.toggle('toc-collapsed', $('toc-panel').hidden);
@@ -540,10 +578,12 @@ $('question-form').addEventListener('submit', async event => {
   await saveQuestion(current, selectedThread);
 });
 $('latest-reply').addEventListener('click', () => {
+  showWorkspace('chat', false);
   const reply = $('messages').querySelector('.message.agent:last-of-type');
   revealMessage(reply);
   reply?.focus({ preventScroll: true });
   $('latest-reply').hidden = true;
+  acknowledgeReplies(threads.find(t => t.id === activeThread));
 });
 $('followup').addEventListener('keydown', event => {
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) {
@@ -578,8 +618,17 @@ $('notice-retry').addEventListener('click', () => {
   const key = $('notice-retry').dataset.retryKey;
   retryQuestion(key);
 });
-document.addEventListener('keydown', event => { if (event.key === 'Escape') closeBubble(); });
-window.addEventListener('resize', sizeHeader);
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  if (bubble) closeBubble();
+  else if (!$('toc-panel').hidden) { closeContents(); $('toc-toggle').focus({ preventScroll: true }); }
+});
+window.addEventListener('resize', () => {
+  if ($('threads-panel').contains(document.activeElement)) workspaceView = 'chat';
+  else if ($('reader').contains(document.activeElement)) workspaceView = 'report';
+  syncWorkspace();
+  positionOpenBubble();
+});
 window.visualViewport?.addEventListener('resize', () => { if (bubble) placeBubble(bubble.target); });
 window.visualViewport?.addEventListener('scroll', () => { if (bubble) placeBubble(bubble.target); });
 $('thread-select').addEventListener('change', () => selectThread($('thread-select').value));
@@ -587,20 +636,47 @@ $('go-source').addEventListener('click', () => {
   const thread = threads.find(t => t.id === activeThread);
   if (thread?.anchor_status === 'matched') {
     const target = passageElement(thread.block_id);
-    target?.scrollIntoView({ block: 'center' });
-    target?.focus({ preventScroll: true });
+    if (target) navigatePassage(target);
   }
 });
-for (const [button, field] of [['mark-read', 'unread'], ['close-thread', 'closed']]) {
-  $(button).addEventListener('click', async () => {
-    const thread = threads.find(t => t.id === activeThread);
-    if (!thread) return;
-    try {
-      await api(`/api/conversations/${thread.id}`, { [field]: field === 'unread' ? false : !thread.closed }, 'PATCH');
-      await refreshThreads();
-    } catch (error) { notice(error.message); }
-  });
+$('close-thread').addEventListener('click', async () => {
+  const thread = threads.find(t => t.id === activeThread);
+  if (!thread) return;
+  try {
+    await api(`/api/conversations/${thread.id}`, { closed: !thread.closed }, 'PATCH');
+    await refreshThreads();
+  } catch (error) { notice(error.message); }
+});
+for (const view of ['report', 'chat']) $('show-' + view).addEventListener('click', event => {
+  event.preventDefault();
+  if (innerWidth <= 900) closeContents();
+  showWorkspace(view);
+});
+$('new-reply').addEventListener('click', async event => {
+  event.preventDefault();
+  const thread = threads.find(t => t.unread);
+  if (!thread) return;
+  if (innerWidth <= 900) closeContents();
+  await selectThread(thread.id);
+  if (activeThread !== thread.id || $('threads-panel').hidden) return;
+  const reply = $('messages').querySelector('.message.agent:last-of-type');
+  reply?.focus({ preventScroll: true });
+});
+function navigateHash(hash) {
+  if (hash === '#reader' || hash === '#threads-panel') {
+    if (innerWidth <= 900) closeContents();
+    showWorkspace(hash === '#reader' ? 'report' : 'chat');
+    return true;
+  }
+  const target = hash.startsWith('#b-') && document.getElementById(hash.slice(1));
+  if (target && $('report').contains(target)) { navigatePassage(target); return true; }
+  return false;
 }
-try { renderDocument(await api('/api/document')); await refreshThreads(); }
+document.addEventListener('click', event => {
+  const link = event.target.closest('a[href^="#"]');
+  if (!event.defaultPrevented && link && navigateHash(link.getAttribute('href'))) event.preventDefault();
+});
+window.addEventListener('hashchange', () => navigateHash(location.hash));
+try { renderDocument(await api('/api/document')); await refreshThreads(); navigateHash(location.hash); }
 catch (error) { notice(`Return to the presenting conversation to resume the local service, then reload. ${error.message}`); }
 setInterval(refreshThreads, 2000);

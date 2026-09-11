@@ -190,9 +190,9 @@ The default durable store is `.data/sillage.sqlite` relative to the working dire
 
 ## Walkthrough
 
-1. Ask the agent that produced your report to present it with Sillage. It supplies its existing report/context and owns listening before opening the reader; there is no manual respondent setup for you. Contents is collapsible and starts closed on narrow screens, without a persisted preference. The report stays central; chat has its own panel beside it on wide screens and below it on narrow screens.
+1. Ask the agent that produced your report to present it with Sillage. It supplies its existing report/context and owns listening before opening the reader; there is no manual respondent setup for you. Contents starts collapsed at every width, without a persisted preference. The report stays central; chat fills the right edge below the header on wide screens. Each pane scrolls independently. On narrow screens, **Report / Chat** switches between full-height panes without discarding drafts or reading positions; the report opens first.
 2. Click a passage (or focus it and press Enter), or select part of a paragraph across inline formatting. A short quote narrows the question without losing the full passage, neighbors or original revision. Send **Ask question**: a visible **Question saved · View conversation** confirmation links to the durable question without moving the report automatically. Close an unsent draft with × or Escape directly, with no confirmation.
-3. The agent's reply appears as safe Markdown beneath your question. Choose another conversation from the one-line dropdown or **Find a conversation** for full questions and passage previews. The activity line distinguishes queued questions, a reply in progress, saved replies and failures, with the next step beside the composer. You can draft while waiting; **Send message** (or Ctrl/⌘ + Enter) becomes available once the turn finishes. Enter alone adds a new line. The passage preview and source disclosures show their original revisions. Follow-ups retain that quote and carry prior turns to the respondent. Expanded citations and reading position survive new turns; **View latest reply** lets you catch up without being pulled away from the report on narrow screens. **Go to passage** explicitly navigates and focuses the source, never silently replacing the report.
+3. The agent's reply appears as safe Markdown beneath your question. Choose another conversation from the one-line dropdown or **Find a conversation** for full questions and passage previews. The activity line distinguishes queued questions, a reply in progress, saved replies and failures, with the next step beside the composer. You can draft while waiting; the **Send message** arrow icon (or Ctrl/⌘ + Enter) becomes available once the turn finishes. Enter alone adds a new line. The compact **Quoted passage**, **Citation** and **Report details** disclosures keep original revisions and source snapshots available on demand, not in the main chat labels. Follow-ups retain that quote and carry prior turns to the respondent. Expanded citations and reading position survive new turns; **View latest reply** lets you catch up without being pulled away from the report. **New reply** opens a saved reply and acknowledges the displayed turns; opening the Chat pane alone does not clear it, and a racing unseen reply stays indicated. The compact **Go to passage** icon explicitly navigates and focuses the source (switching to Report on narrow screens), never silently replacing it. Send and passage icons have accessible names, hover titles and visible keyboard focus; a failed save changes the send action to **Retry message** without losing its payload.
 4. Restart the same service/database: reports, conversation turns, citations, unread state and original snapshots remain. A local draft is temporary; saved conversations are not. **Actions → Close conversation** is organization, not deletion or cancellation; it remains selectable.
 5. The authoring workflow can publish a guarded new revision through the same API/CLI. Changed or ambiguous passages say **Passage to review** and retain their original snapshot, rather than linking to similar-looking text. A follow-up still refers to that original revision. To discuss new wording, start a question on the new passage.
 
@@ -227,7 +227,32 @@ Yuba, Lavish and any other report-authoring repository remain independent and un
 
 ## Visual direction
 
-**Material Darker Air** is the one implemented direction: anthracite/slate surfaces, restrained indigo, airy hierarchy and spacing, a wider canvas for code/tables, and prose capped at 76ch. Chat is visually separated on the right with one scrolling history and an accessible follow-up; on narrow screens it follows the report and uses page scrolling, with a header link for direct access. Short windows (800px tall or less) also use page scrolling so expanded context cannot trap the composer below the viewport. A compact context header, distinct question cards, unboxed Markdown replies and revision-labeled sources keep the conversation legible. The composer stays available for drafts while the agent replies; activity reflects saved request states, not invented tool steps or streamed reasoning. Saved-question confirmations and real listening-loss alerts remain visible in the sticky header. Contents starts collapsed on narrow screens and can be toggled without a stored preference. Duplicate chrome/document titles are avoided without changing semantic report passages. Wide tables keep readable columns inside a keyboard-focusable horizontal scroll region. The small locally bundled Sillage AXI mark uses no remote asset or font. **Plum & Amber** remains a documented future alternative only, not a second theme or switch.
+**Material Darker Air** is the one implemented direction: anthracite/slate surfaces,
+restrained indigo, airy hierarchy and spacing, a wider canvas for code/tables, and
+prose capped at 76ch. Inspired by the [Zed workspace reference](https://zed.dev/img/agentic/posters/review-poster.webp),
+the edge-to-edge chat has no rounded card, inset margin or shadow. The report's
+vertical scrollbar sits immediately to its left. Neither pane scrolls the other
+or the page; the chat's quote, snapshot and messages share one scroll region with
+a pinned composer. At 600px viewport height or less, the **whole chat** becomes its
+single scroll region so context, status and composer remain reachable rather than
+being clipped. The report still scrolls independently. Short question bubbles may
+also need scrolling to reach the question action.
+
+At 700px width or less, **Report / Chat** explicitly selects the visible full-height
+pane; hidden content is outside the keyboard order. On intermediate widths Contents
+opens as an overlay; choose a heading or press Escape to close it. Contents starts
+collapsed everywhere. English remains the interface language, with author-supplied
+language metadata retained for report/quote pronunciation.
+
+Compact context, distinct question cards, unboxed Markdown replies and on-demand
+provenance keep the conversation legible. The composer stays available for drafts
+while the agent replies; activity reflects saved request states, not invented tool
+steps or streamed reasoning. Saved-question confirmations and real listening-loss
+alerts remain above the workspace. Duplicate chrome/document titles are avoided
+without changing semantic passages. Wide tables keep readable columns inside a
+keyboard-focusable horizontal region. The small locally bundled Sillage AXI mark
+uses no remote asset or font. **Plum & Amber** remains a documented future
+alternative only, not a second theme or switch.
 
 ### Standalone icon proposals
 
