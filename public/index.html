@@ -12,51 +12,36 @@
   <header class="topbar">
     <div class="brand"><img src="/sillage.svg" width="28" height="28" alt=""><strong>Sillage AXI</strong></div>
     <div class="toolbar">
-      <button id="agent-toggle" type="button" aria-expanded="false" aria-controls="agent-panel"><span id="agent-state">Local agent · checking…</span></button>
-      <button id="import-toggle" type="button" aria-expanded="true" aria-controls="import-panel">Import / new revision</button>
-      <button id="threads-toggle" type="button" aria-expanded="false" aria-controls="threads-panel">Threads <span id="thread-count">(0)</span><span id="thread-alert"></span></button>
+      <button id="toc-toggle" type="button" aria-expanded="true" aria-controls="toc-panel">Contents</button>
+      <a href="#threads-panel">Chat <span id="thread-alert"></span></a>
     </div>
   </header>
   <p id="notice" role="status" aria-live="polite"></p>
-  <section id="agent-panel" class="setup-panel" aria-labelledby="agent-heading" hidden>
-    <h2 id="agent-heading">Connect your local agent</h2>
-    <p id="agent-detail" role="status">No local agent is connected. Questions stay saved in the queue, but will not answer themselves.</p>
-    <ol>
-      <li>Use an already-running, local-only agent with the Sillage AXI skill (<code>skills/sillage/SKILL.md</code>). Ask it to connect to this reader’s local relay and answer queued questions. Do not use a cloud-backed agent.</li>
-      <li>For a stdio-capable local agent, start <code>node src/local-agent.js</code> from the Sillage AXI checkout and attach its stdin/stdout, keeping stderr separate. Use Node directly: npm's normal script banner can pollute the JSONL stream. For a nondefault loopback port, use e.g. <code>SILLAGE_URL=http://127.0.0.1:3211 node src/local-agent.js</code> with the reader's port. Send <code>{"type":"ready","worker":"my-local-agent"}</code> only when ready to answer. The bridge prints requests as JSON lines; the agent must return answers. See <code>docs/local-agent.md</code>.</li>
-      <li>The indicator becomes active only after connection; heartbeat loss makes it unavailable. Stop via the agent’s disconnect action or end the bridge’s input. In-flight work gets an explicit failure, never a fabricated answer.</li>
-    </ol>
-    <p class="muted">Sillage AXI cannot start a model or execute commands. This bridge is not AI. The separate <code>npm run fake-agent</code> command is a deterministic Sillage AXI demo, not the active-agent path. Nothing here authorizes project edits, deletion, publication or merges.</p>
-  </section>
-  <section id="import-panel" class="setup-panel" aria-label="Import a Markdown report">
-    <form id="import-form">
-      <h1>One report, evolving over time</h1>
-      <p id="import-explanation">Import / new revision brings in a newer version of this same report, not a different report. Durable conversations and their original quotes, citations and source snapshots are preserved. Only safe matches are retained; changed or ambiguous passages are marked for review, never silently remapped.</p>
-      <label>Markdown file <input id="file" type="file" accept=".md,.markdown,text/markdown,text/plain"></label>
-      <label>Report name <input id="title" type="text" maxlength="200" required value="My report"></label>
-      <label>Or paste Markdown <textarea id="source" rows="8" required maxlength="1000000" placeholder="# Report title&#10;&#10;Paste your report here…"></textarea></label>
-      <button id="import-submit" type="submit">Import revision</button>
-    </form>
-    <div class="live-controls">
-      <h2>Live updates · on this PC</h2>
-      <p>Revisions imported here or through the local relay appear automatically in open readers. To observe edits on disk, explicitly connect the same Markdown file after importing it. Read-only permission lasts only in this tab; no paths are sent to the server.</p>
-      <button id="watch-file" type="button">Connect file for live updates…</button>
-      <button id="stop-watch" type="button" hidden>Stop file updates</button>
-      <p id="watch-status" role="status" class="muted"></p>
-    </div>
-  </section>
+  <p id="answer-alert" role="alert" hidden></p>
   <div class="layout" id="layout">
-    <nav class="toc-panel" aria-label="Table of contents"><h2>Contents</h2><ol id="toc"></ol></nav>
+    <nav id="toc-panel" class="toc-panel" aria-label="Table of contents"><h2>Contents</h2><ol id="toc"></ol></nav>
     <main id="reader">
-      <div class="report-header"><p class="eyebrow">Your local reading space</p><h1 id="report-title">Make room for understanding</h1><p id="revision" class="muted"></p><p id="file-state" class="muted" role="status"></p></div>
-      <p class="hint">Click a passage (or focus it and press Enter) to ask. Select a short quote to narrow the context. Your conversations live in Threads.</p>
-      <article id="report" aria-label="Markdown report"></article>
+      <div class="report-header"><p class="eyebrow">Your local reading space</p><h1 id="report-title">Your report will appear here</h1><p id="revision" class="muted"></p></div>
+      <p class="hint">Click a passage to ask, or select a short quote. Replies appear in the chat alongside your report.</p>
+      <article id="report" aria-label="Markdown report"><p>Return to the conversation that produced your report and ask to present it with Sillage.</p></article>
     </main>
-    <aside id="threads-panel" class="threads-panel" aria-label="Saved conversations" hidden>
-      <h2>Threads</h2>
-      <p class="muted">Durable conversations, temporary bubbles.</p>
-      <label>Show <select id="thread-filter"><option value="active">Open / unread / to review</option><option value="all">All threads</option></select></label>
-      <div id="threads"></div>
+    <aside id="threads-panel" class="threads-panel" aria-label="Passage chat" tabindex="-1">
+      <header class="chat-header"><h2>Conversation <span id="thread-count">(0)</span></h2>
+        <label for="thread-select">Thread</label><select id="thread-select" aria-label="Active thread"><option value="">No conversations yet</option></select>
+      </header>
+      <p id="chat-empty" class="muted">Ask about a passage to start a conversation. Your quote and replies stay saved on this PC.</p>
+      <div id="chat" hidden>
+        <div class="chat-context"><p id="chat-anchor" class="muted"></p><blockquote id="chat-quote"></blockquote><button id="go-source" type="button">Go to passage</button></div>
+        <div id="messages" role="log" aria-label="Conversation history" aria-live="polite"></div>
+        <p id="chat-status" role="status"></p>
+        <form id="followup-form">
+          <label for="followup">Continue this conversation</label><textarea id="followup" rows="3" maxlength="4000" required></textarea>
+          <button id="followup-submit" type="submit">Send message</button>
+          <p id="followup-status" role="status"></p>
+        </form>
+        <div class="chat-actions"><button id="mark-read" type="button" hidden>Mark read</button><button id="close-thread" type="button">Close thread</button></div>
+        <details id="snapshot"><summary>Original source snapshot</summary><pre id="snapshot-text"></pre></details>
+      </div>
     </aside>
   </div>
   <section id="bubble" role="dialog" aria-labelledby="bubble-title" hidden>
@@ -64,18 +49,10 @@
     <p id="bubble-anchor" class="muted"></p>
     <blockquote id="bubble-quote"></blockquote>
     <p id="bubble-status" role="status" aria-live="polite"></p>
-    <button id="bubble-agent" type="button" hidden>Connect local agent</button>
-    <div id="messages"></div>
     <form id="question-form">
       <label>Your question <textarea id="question" rows="3" maxlength="4000" required></textarea></label>
       <button id="question-submit" type="submit">Ask question</button>
     </form>
-    <div class="bubble-actions">
-      <button id="go-source" type="button" hidden>Show source passage</button>
-      <button id="mark-read" type="button" hidden>Mark read</button>
-      <button id="close-thread" type="button" hidden>Close thread</button>
-    </div>
-    <details id="snapshot" hidden><summary>Original source snapshot</summary><pre id="snapshot-text"></pre></details>
   </section>
 </body>
 </html>
