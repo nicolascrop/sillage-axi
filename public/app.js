@@ -262,6 +262,7 @@ function closeBubble(restore = true) {
   // save is in flight. Its captured payload can still finish durably in the chat.
   const target = bubble?.target;
   const retryKey = bubble && questionDrafts.has(bubble.clientKey) ? bubble.clientKey : null;
+  selectionHandled = false;
   bubble = null;
   $('bubble').hidden = true;
   highlightPassages();
@@ -548,14 +549,15 @@ $('report').addEventListener('keydown', event => {
 function quoteSelection() {
   const selection = window.getSelection();
   const quote = selection?.toString().trim();
+  selectionHandled = false;
   if (selection?.anchorNode?.parentElement?.closest('.wb-host')) return;
-  selectionHandled = Boolean(quote);
   if (!quote) return;
   if (quote.length > 2000) { notice('Select at most 2,000 characters for a short quote.'); return; }
   const first = nearestPassage(selection.anchorNode);
   const last = nearestPassage(selection.focusNode);
   if (!first || first !== last || !$('report').contains(first)) { notice('Select text within a single semantic passage.'); return; }
   openQuestion(first, quote);
+  selectionHandled = true;
 }
 $('report').addEventListener('mouseup', quoteSelection);
 $('report').addEventListener('keyup', event => { if (event.key === 'Shift') quoteSelection(); });

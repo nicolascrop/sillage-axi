@@ -1129,7 +1129,7 @@ test('question light dismissal preserves inside clicks, outside focus, replaceme
 });
 
 test('question dismissal crosses an active whiteboard iframe without disabling annotation', async t => {
-  const app = await service(t, '# Diagram\n\nAn exact **quoted** passage.\n\n```mermaid\nflowchart LR\n A-->B\n```');
+  const app = await service(t, '# Diagram\n\nFirst **quoted** passage.\n\nSecond passage.\n\n```mermaid\nflowchart LR\n A-->B\n```');
   const ui = await reader(app.origin);
   t.after(() => ui.dom.window.close());
   const frame = ui.$('report').querySelector('iframe');
@@ -1141,15 +1141,23 @@ test('question dismissal crosses an active whiteboard iframe without disabling a
   const channelId = messages.find(message => message.type === 'sillage-whiteboard:init').channelId;
   dispatch({ type: 'sillage-whiteboard:mounted', channelId });
   ui.$('report').querySelector('.wb-tools button').click();
-  const paragraph = ui.$('report').querySelector('p');
-  paragraph.click();
+  const paragraphs = [...ui.$('report').querySelectorAll(':scope > p')];
+  const range = ui.window.document.createRange();
+  range.selectNodeContents(paragraphs[0].querySelector('strong'));
+  ui.window.getSelection().removeAllRanges();
+  ui.window.getSelection().addRange(range);
+  paragraphs[0].dispatchEvent(new ui.window.MouseEvent('mouseup', { bubbles: true }));
   assert.equal(ui.$('bubble').hidden, false);
+  assert.equal(ui.$('bubble-quote').textContent, 'quoted');
   const pointer = new ui.window.Event('pointerover', { bubbles: true, cancelable: true });
   frame.dispatchEvent(pointer);
   assert.equal(ui.$('bubble').hidden, true);
   assert.equal(pointer.defaultPrevented, false);
   assert.equal(frame.classList.contains('wb-locked'), false);
-  paragraph.click();
+  ui.window.getSelection().removeAllRanges();
+  paragraphs[1].click();
+  assert.equal(ui.$('bubble').hidden, false);
+  assert.equal(ui.$('bubble-quote').textContent, 'Second passage.');
   frame.focus();
   assert.equal(ui.$('bubble').hidden, true);
   assert.equal(ui.window.document.activeElement, frame);
