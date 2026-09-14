@@ -667,6 +667,16 @@ $('review-menu').addEventListener('keydown', event => {
 $('review-actions').addEventListener('focusout', event => {
   if (event.relatedTarget && !$('review-actions').contains(event.relatedTarget)) closeReviewMenu();
 });
+function activeWhiteboardFrame(target) {
+  const frame = target?.closest?.('#report .wb-host iframe');
+  return frame && !frame.inert && !frame.classList.contains('wb-locked') ? frame : null;
+}
+function dismissBubbleAtWhiteboardBoundary(event) {
+  if (bubble && activeWhiteboardFrame(event.target)) closeBubble(false);
+}
+document.addEventListener('focusin', dismissBubbleAtWhiteboardBoundary, true);
+document.addEventListener('pointerover', dismissBubbleAtWhiteboardBoundary, true);
+document.addEventListener('pointerdown', dismissBubbleAtWhiteboardBoundary, true);
 // Capture before a passage's click opens a replacement. A mouseup text selection
 // already opened its bubble, so the completing click must not dismiss that draft.
 document.addEventListener('click', event => {

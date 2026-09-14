@@ -1128,6 +1128,33 @@ test('question light dismissal preserves inside clicks, outside focus, replaceme
   assert.equal(app.store.threads().length, 0);
 });
 
+test('question dismissal crosses an active whiteboard iframe without disabling annotation', async t => {
+  const app = await service(t, '# Diagram\n\nAn exact **quoted** passage.\n\n```mermaid\nflowchart LR\n A-->B\n```');
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const frame = ui.$('report').querySelector('iframe');
+  const messages = [];
+  frame.contentWindow.postMessage = message => messages.push(message);
+  const dispatch = data => ui.window.dispatchEvent(new ui.window.MessageEvent('message', { source: frame.contentWindow, data }));
+  dispatch({ type: 'sillage-whiteboard:ready' });
+  await waitFor(() => messages.some(message => message.type === 'sillage-whiteboard:init'));
+  const channelId = messages.find(message => message.type === 'sillage-whiteboard:init').channelId;
+  dispatch({ type: 'sillage-whiteboard:mounted', channelId });
+  ui.$('report').querySelector('.wb-tools button').click();
+  const paragraph = ui.$('report').querySelector('p');
+  paragraph.click();
+  assert.equal(ui.$('bubble').hidden, false);
+  const pointer = new ui.window.Event('pointerover', { bubbles: true, cancelable: true });
+  frame.dispatchEvent(pointer);
+  assert.equal(ui.$('bubble').hidden, true);
+  assert.equal(pointer.defaultPrevented, false);
+  assert.equal(frame.classList.contains('wb-locked'), false);
+  paragraph.click();
+  frame.focus();
+  assert.equal(ui.$('bubble').hidden, true);
+  assert.equal(ui.window.document.activeElement, frame);
+});
+
 test('review menu uses keyboard focus, Escape, Tab, focus departure and outside dismissal without lifecycle effects', async t => {
   const app = await service(t);
   const session = app.relay.connect({ worker: 'menu-fixture' });
