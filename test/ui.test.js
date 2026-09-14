@@ -122,11 +122,11 @@ test('continuous chat preserves per-thread drafts, chronology and an uncertain f
   }
   choose(ui, first.id);
   await waitFor(() => !app.store.conversation(first.id).unread);
-  await waitFor(() => ui.$('mark-read').hidden);
+  await waitFor(() => ![...ui.$('conversation-choices').querySelectorAll('button')].find(b => b.dataset.threadId === first.id).textContent.includes('New reply'));
   setFollowup(ui, 'A draft about the first quote');
   choose(ui, second.id);
   await waitFor(() => !app.store.conversation(second.id).unread);
-  await waitFor(() => ui.$('mark-read').hidden);
+  await waitFor(() => ui.$('new-reply').hidden);
   assert.equal(ui.$('followup').value, '');
   setFollowup(ui, 'Second draft');
   choose(ui, first.id);
@@ -151,7 +151,7 @@ test('continuous chat preserves per-thread drafts, chronology and an uncertain f
   assert.equal(ui.$('thread-select').options.length, 2, 'follow-ups do not create another dropdown entry');
   choose(ui, second.id);
   assert.equal(ui.$('followup').value, 'Second draft');
-  await waitFor(() => ui.$('mark-read').hidden);
+  await ui.poll();
 });
 
 test('local drafts close silently with button, Escape, replacement and page departure; Contents collapses independently', async t => {
@@ -173,6 +173,9 @@ test('local drafts close silently with button, Escape, replacement and page depa
   assert.equal(leaving.defaultPrevented, false);
   assert.equal(app.store.threads().length, 0);
   const reportNode = ui.$('report').firstElementChild;
+  assert.equal(ui.$('toc-panel').hidden, true);
+  ui.$('toc-toggle').click();
+  assert.equal(ui.$('toc-panel').hidden, false);
   ui.$('toc-toggle').click();
   assert.equal(ui.$('toc-panel').hidden, true);
   assert.equal(ui.$('toc-toggle').getAttribute('aria-expanded'), 'false');
@@ -210,6 +213,7 @@ test('live revisions keep safe reading anchors, old drafts and chat provenance w
   const ui = await reader(app.origin, window => {
     window.HTMLElement.prototype.getBoundingClientRect = function () {
       const changed = window.document.getElementById('report').textContent.includes('modifié');
+      if (this.id === 'reader') return { top: 70 };
       const top = this.textContent === 'Passage stable.' ? (changed ? 160 : 90) : 500;
       return { top, bottom: this.classList.contains('site-header') ? 70 : top + 30, right: 800 };
     };
@@ -218,7 +222,8 @@ test('live revisions keep safe reading anchors, old drafts and chat provenance w
   ui.$('report').querySelector('p').click(); ui.$('question').value = 'Que signifie ce passage ?';
   app.store.importReport({ title: 'Rapport', source: '# Rapport\n\nContexte modifié.\n\nPassage stable.' });
   await ui.poll();
-  assert.equal(ui.window.lastScrollDelta, 70);
+  assert.equal(ui.$('reader').scrollTop, 70);
+  assert.equal(ui.window.lastScrollDelta, undefined);
   assert.equal(ui.$('question').value, 'Que signifie ce passage ?');
   assert.equal(ui.$('bubble-quote').textContent, 'Contexte original.');
   assert.match(ui.$('bubble-anchor').textContent, /Passage to review.*original revision 1/);
@@ -510,12 +515,14 @@ test('narrow answer arrival reveals its beginning when the reader is viewing the
     };
   });
   t.after(() => ui.dom.window.close());
+  ui.$('show-chat').click();
   const request = app.relay.reserve(session);
   app.store.answer(request.request_id, { lease_token: request.lease_token, status: 'answered', body: 'The answer starts here.', citations: [] });
   app.relay.answered(request.request_id);
   await ui.poll();
   const answer = app.store.conversation(thread.id).messages.at(-1);
-  assert.equal(ui.window.lastRevealedMessage, answer.id);
+  assert.equal(ui.$('chat-scroll').scrollTop, 188);
+  assert.equal(ui.$('threads-panel').hidden, false);
   app.relay.disconnect(session);
 });
 
@@ -547,9 +554,11 @@ test('narrow question and answer saves leave report reading in place until expli
   assert.equal(ui.window.lastRevealedMessage, undefined, 'answer arrival must not scroll away from the report');
   assert.equal(ui.$('latest-reply').hidden, false);
   ui.$('latest-reply').click();
-  assert.equal(ui.window.lastRevealedMessage, answer.id);
+  assert.equal(ui.$('chat-scroll').scrollTop, 188);
+  assert.equal(ui.$('threads-panel').hidden, false);
   assert.equal(ui.window.document.activeElement.dataset.messageId, answer.id);
   assert.equal(ui.$('latest-reply').hidden, true);
+  await waitFor(() => ui.$('new-reply').hidden);
   app.relay.disconnect(session);
 });
 
@@ -567,7 +576,8 @@ test('saved confirmation offers explicit navigation; quotes remain exact but dis
   assert.equal(ui.$('notice-chat').hidden, false);
   assert.equal(ui.window.lastScrolled, undefined);
   ui.$('notice-chat').click();
-  await waitFor(() => ui.window.lastScrolled === 'threads-panel');
+  await waitFor(() => ui.window.document.activeElement === ui.$('threads-panel'));
+  assert.equal(ui.window.lastScrolled, undefined);
   assert.equal(ui.window.document.activeElement, ui.$('threads-panel'));
 });
 
@@ -681,7 +691,7 @@ test('activity follows actual turns and presence; waiting drafts stay editable a
   assert.match(ui.$('chat-next').textContent, /conversation that presented.*stays queued/);
   assert.equal(ui.$('followup').disabled, false);
   assert.equal(ui.$('followup-submit').disabled, true);
-  assert.equal(ui.$('context-label').textContent, `Passage · revision ${doc.id}`);
+  assert.equal(ui.$('context-label').textContent, 'Quoted passage');
   assert.equal(ui.$('context-preview').textContent, 'quoted');
   setFollowup(ui, 'A draft while waiting');
   const keyboardSend = (key = 'ctrlKey') => ui.$('followup').dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Enter', [key]: true, bubbles: true, cancelable: true }));
@@ -731,8 +741,9 @@ test('new turns append without rebuilding read history, expanded citations, focu
   citation.open = true;
   citation.querySelector('summary').focus();
   const log = ui.$('messages');
-  Object.defineProperties(log, { scrollHeight: { value: 1000 }, clientHeight: { value: 250 } });
-  log.scrollTop = 60;
+  const scroll = ui.$('chat-scroll');
+  Object.defineProperties(scroll, { scrollHeight: { value: 1000 }, clientHeight: { value: 250 } });
+  scroll.scrollTop = 60;
   app.store.followup(thread.id, { question: 'A follow-up from another tab', client_key: 'append-test' });
   await ui.poll();
   await runFakeAgent(app.origin);
@@ -742,24 +753,177 @@ test('new turns append without rebuilding read history, expanded citations, focu
   assert.equal(log.children[1], reply);
   assert.equal(citation.open, true);
   assert.equal(ui.window.document.activeElement, citation.querySelector('summary'));
-  assert.equal(log.scrollTop, 60);
+  assert.equal(scroll.scrollTop, 60);
   assert.equal(ui.$('latest-reply').hidden, false);
-  assert.equal(citation.querySelector('summary').textContent, `Source 1 · revision ${doc.id}`);
+  assert.equal(citation.querySelector('summary').textContent, 'Citation');
   app.store.followup(thread.id, { question: 'One more turn', client_key: 'focused-source-test' });
   await ui.poll();
-  log.scrollTop = 750; // At the end, but keyboard focus is still inspecting an earlier source.
+  scroll.scrollTop = 750; // At the end, but keyboard focus is still inspecting an earlier source.
   await runFakeAgent(app.origin);
   await ui.poll();
   assert.equal(log.children.length, 6);
-  assert.equal(log.scrollTop, 750, 'do not scroll a focused earlier source out of view');
+  assert.equal(scroll.scrollTop, 750, 'do not scroll a focused earlier source out of view');
   assert.equal(ui.window.document.activeElement, citation.querySelector('summary'));
   const oldQuote = citation.querySelector('blockquote').textContent;
   app.store.importReport({ title: 'Changed report', source: 'A different passage, never reattached.' });
   await ui.poll();
   assert.equal(citation.querySelector('blockquote').textContent, oldQuote);
   assert.equal(citation.open, true);
-  assert.equal(ui.$('context-label').textContent, `Passage · revision ${doc.id}`);
+  assert.equal(ui.$('context-label').textContent, 'Quoted passage');
   assert.equal(ui.$('go-source').hidden, true);
   citation.querySelector('button').click();
   assert.match(ui.$('notice').textContent, /Historical citation.*Exact quote is preserved/);
+});
+
+test('workspace starts report-first with collapsed Contents; view switches, source icons and resize keep focus and drafts', async t => {
+  const app = await service(t);
+  app.store.question(questionInput(app.store.current(), { quote: 'quoted' }));
+  await runFakeAgent(app.origin);
+  const ui = await reader(app.origin, window => { window.innerWidth = 390; });
+  t.after(() => ui.dom.window.close());
+  assert.equal(ui.$('reader').hidden, false);
+  assert.equal(ui.$('threads-panel').hidden, true);
+  assert.equal(ui.$('show-report').getAttribute('aria-current'), 'page');
+  assert.equal(ui.$('toc-panel').hidden, true);
+  ui.$('reader').scrollTop = 240;
+  ui.$('show-chat').click();
+  assert.equal(ui.$('reader').hidden, true);
+  assert.equal(ui.$('threads-panel').hidden, false);
+  assert.equal(ui.window.document.activeElement, ui.$('threads-panel'));
+  setFollowup(ui, 'A retained workspace draft');
+  ui.$('chat-scroll').scrollTop = 90;
+  ui.$('show-report').click();
+  assert.equal(ui.$('reader').scrollTop, 240);
+  assert.equal(ui.window.document.activeElement, ui.$('reader'));
+  ui.$('show-chat').click();
+  assert.equal(ui.$('chat-scroll').scrollTop, 90);
+  assert.equal(ui.$('followup').value, 'A retained workspace draft');
+  ui.$('go-source').click();
+  assert.equal(ui.$('reader').hidden, false);
+  assert.equal(ui.$('threads-panel').hidden, true);
+  assert.equal(ui.window.document.activeElement, ui.$('report').querySelector('p'));
+  assert.equal(ui.window.lastScrolled, ui.$('report').querySelector('p').id);
+  ui.$('show-chat').click();
+  ui.$('followup').focus();
+  ui.window.innerWidth = 1440; ui.window.dispatchEvent(new ui.window.Event('resize'));
+  assert.equal(ui.$('reader').hidden, false);
+  assert.equal(ui.$('threads-panel').hidden, false);
+  ui.window.innerWidth = 320; ui.window.dispatchEvent(new ui.window.Event('resize'));
+  assert.equal(ui.$('reader').hidden, true);
+  assert.equal(ui.window.document.activeElement, ui.$('followup'));
+  ui.$('toc-toggle').click();
+  assert.equal(ui.$('reader').hidden, false);
+  ui.$('toc').querySelector('a').click();
+  assert.equal(ui.$('toc-panel').hidden, true);
+  assert.equal(ui.window.document.activeElement, ui.$('report').querySelector('h1'));
+  ui.$('show-chat').click();
+  ui.window.document.querySelector('.skip-link').click();
+  assert.equal(ui.$('reader').hidden, false);
+  assert.equal(ui.window.document.activeElement, ui.$('reader'));
+});
+
+test('icon actions keep accessible names and feedback throughout uncertain-save retry', async t => {
+  const app = await service(t);
+  const doc = app.store.current();
+  const thread = app.store.question(questionInput(doc, { quote: 'quoted' }));
+  await runFakeAgent(app.origin);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  for (const [button, name] of [[ui.$('followup-submit'), 'Send message'], [ui.$('go-source'), 'Go to passage'], [ui.$('messages').querySelector('.citation'), 'Go to cited passage']]) {
+    assert.equal(button.getAttribute('aria-label'), name);
+    assert.equal(button.title, name);
+    assert.equal(button.textContent, '');
+    assert.equal(button.querySelector('svg').getAttribute('aria-hidden'), 'true');
+  }
+  assert.equal(ui.$('context-details').open, false);
+  assert.equal(ui.$('context-label').textContent, 'Quoted passage');
+  assert.equal(ui.$('messages').querySelector('.citation-details summary').textContent, 'Citation');
+  ui.$('context-details').open = true; ui.$('snapshot').open = true;
+  assert.match(ui.$('snapshot-text').textContent, /Revision 1, lines/);
+  assert.ok(ui.$('snapshot-text').textContent.includes(thread.context.block.source));
+  const send = ui.$('followup-submit'), icon = send.querySelector('svg');
+  const normalFetch = ui.window.fetch;
+  let release;
+  ui.window.fetch = async (path, init) => {
+    const response = await normalFetch(path, init);
+    if (path.endsWith('/questions')) {
+      await new Promise(resolve => { release = resolve; });
+      throw new Error('Lost acknowledgement');
+    }
+    return response;
+  };
+  setFollowup(ui, 'Retry this exact message'); submit(ui, 'followup-form');
+  await waitFor(() => release);
+  assert.equal(send.getAttribute('aria-label'), 'Saving message');
+  assert.equal(send.disabled, true);
+  assert.equal(ui.$('followup-form').getAttribute('aria-busy'), 'true');
+  release();
+  await waitFor(() => send.getAttribute('aria-label') === 'Retry message');
+  assert.equal(send.title, 'Retry message');
+  assert.equal(send.querySelector('svg'), icon);
+  assert.equal(send.disabled, false);
+  assert.match(ui.$('followup-status').textContent, /Retry sends/);
+  ui.window.fetch = normalFetch;
+  submit(ui, 'followup-form');
+  await waitFor(() => ui.$('followup').value === '' && ui.$('followup-form').getAttribute('aria-busy') === 'false');
+  assert.equal(app.store.conversation(thread.id).messages.length, 3);
+  assert.equal(send.getAttribute('aria-label'), 'Send message');
+  assert.equal(send.querySelector('svg'), icon);
+});
+
+test('New reply is durable, explicit, and does not acknowledge a late unseen answer racing navigation', async t => {
+  const app = await service(t);
+  const thread = app.store.question(questionInput(app.store.current(), { quote: 'quoted' }));
+  await runFakeAgent(app.origin);
+  const ui = await reader(app.origin, window => { window.innerWidth = 390; });
+  t.after(() => ui.dom.window.close());
+  assert.equal(ui.$('new-reply').hidden, false);
+  ui.$('show-chat').click();
+  await ui.poll();
+  assert.equal(app.store.conversation(thread.id).unread, 1, 'opening the pane alone is not an acknowledgement');
+  assert.equal(ui.$('conversation-state').hidden, true, 'no unread/number chrome');
+  const followup = app.store.followup(thread.id, { question: 'A late reply', client_key: 'late-reply' });
+  const normalFetch = ui.window.fetch;
+  const acknowledgements = [];
+  ui.window.fetch = async (path, init) => {
+    if (init?.method === 'PATCH') {
+      acknowledgements.push(path);
+      await runFakeAgent(app.origin); // lands after the displayed snapshot
+    }
+    return normalFetch(path, init);
+  };
+  ui.$('new-reply').click();
+  await waitFor(() => ui.$('messages').querySelectorAll('.message').length === 4);
+  assert.equal(app.store.thread(thread.id).unread, 0);
+  assert.equal(app.store.thread(followup.messages.at(-1).thread_id).unread, 1);
+  assert.equal(ui.$('new-reply').hidden, false);
+  assert.deepEqual(acknowledgements, [`/api/threads/${thread.id}`]);
+  ui.window.fetch = normalFetch;
+  ui.$('new-reply').click();
+  await waitFor(() => ui.$('new-reply').hidden);
+  assert.equal(app.store.conversation(thread.id).unread, 0);
+  await waitFor(() => ui.window.document.activeElement === ui.$('messages').lastElementChild);
+  const reloaded = await reader(app.origin);
+  t.after(() => reloaded.dom.window.close());
+  assert.equal(reloaded.$('new-reply').hidden, true);
+});
+
+test('a workflow revision received while narrow report is hidden keeps its saved reading position', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin, window => { window.innerWidth = 390; });
+  t.after(() => ui.dom.window.close());
+  const pane = ui.$('reader');
+  let position = 240;
+  // Real Chrome exposes zero geometry/scrollTop for display:none. A jsdom DOM
+  // fixture must model that instead of accidentally proving the old page code.
+  Object.defineProperty(pane, 'scrollTop', { get: () => pane.hidden ? 0 : position, set: value => { position = value; } });
+  ui.$('show-chat').click();
+  app.store.importReport({ title: 'Updated', source: '# Heading\n\nA changed introduction.\n\nKeep this.' });
+  await ui.poll();
+  assert.equal(pane.hidden, true);
+  ui.$('show-report').click();
+  assert.equal(pane.scrollTop, 240);
+  assert.match(ui.$('report').textContent, /changed introduction/);
+  assert.equal(ui.window.lastScrollDelta, undefined);
+  assert.equal(ui.window.lastScrollPosition, undefined);
 });

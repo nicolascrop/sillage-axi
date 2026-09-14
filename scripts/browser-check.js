@@ -60,6 +60,7 @@ const evaluate = async expression => {
 };
 const shot = async name => { await snapshot(); await c('screenshot', `${evidence}/${name}.png`); };
 let page;
+const geometry = [];
 try {
   send({ type: 'ready', worker: 'layout-test-fixture-not-inference', presentation: { title: 'Orchard review', source, operation_key: 'browser-presentation', expected_revision_id: null, handoff } });
   await waitFor(() => events.some(e => e.type === 'connected'));
@@ -73,11 +74,11 @@ try {
   page = pages.find(p => p.url.replace(/\/$/, '') === origin)?.id;
   assert.ok(page, 'the fixture must have its own explicitly selected page');
   await c('selectpage', String(page));
-  for (const [width, height] of [[1440, 1000], [1280, 720], [390, 844], [320, 844]]) {
+  for (const [width, height] of [[1440, 1000], [1280, 720], [390, 844], [320, 844], [844, 390]]) {
     await c('resize', String(width), String(height));
     await c('open', origin);
     const initial = await evaluate(`() => ({collapsed:document.getElementById('toc-panel').hidden, empty:document.getElementById('thread-select').selectedOptions[0]?.textContent, titleHidden:document.getElementById('report-title').hidden, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth})`);
-    assert.equal(initial.collapsed, width <= 700);
+    assert.equal(initial.collapsed, true);
     assert.equal(initial.titleHidden, true);
     assert.equal(initial.width, initial.scroll);
     if (!app.store.threads().length) assert.equal(initial.empty, 'No conversations yet');
@@ -92,7 +93,13 @@ try {
     const bubble = await evaluate(`() => {const r=document.getElementById('bubble').getBoundingClientRect(),q=document.getElementById('question-submit').getBoundingClientRect();return {top:r.top,bottom:r.bottom,right:r.right,height:innerHeight,width:document.documentElement.clientWidth,submitBottom:q.bottom,quote:document.getElementById('bubble-quote').textContent};}`);
     assert.ok(bubble.top >= 0 && bubble.bottom <= bubble.height, 'whole bubble fits vertically');
     assert.ok(bubble.right <= bubble.width);
-    assert.ok(bubble.submitBottom <= bubble.height, 'send is visible on opening');
+    if (height > 600) assert.ok(bubble.submitBottom <= bubble.height, 'send is visible on opening');
+    else {
+      const reached = await evaluate(`() => {const r=document.getElementById('reader'),before=r.scrollTop,b=document.getElementById('question-submit');b.scrollIntoView({block:'nearest'});return {before,after:r.scrollTop,bottom:b.getBoundingClientRect().bottom,page:scrollY};}`);
+      assert.ok(reached.bottom <= height, 'short-window bubble scroll makes send reachable');
+      assert.equal(reached.before, reached.after);
+      assert.equal(reached.page, 0);
+    }
     assert.equal(bubble.quote.includes('**'), false);
     await shot(`${width}-question`);
     await evaluate(`() => {document.getElementById('question').value='Why keep this reserve at ${width}px?';document.getElementById('question-form').requestSubmit();return true;}`);
@@ -108,7 +115,7 @@ try {
     const request = events.find(e => e.type === 'request' && e.request.question === `Why keep this reserve at ${width}px?`).request;
     assert.deepEqual(request.handoff, { revision_id: doc.id, ...handoff });
     await delay(2200);
-    const drafting = await evaluate(`() => {const f=document.getElementById('followup');f.value='What should I check next at ${width}px?';f.dispatchEvent(new Event('input'));return {status:document.getElementById('chat-status').textContent,editable:!f.disabled,sendDisabled:document.getElementById('followup-submit').disabled,y:scrollY};}`);
+    const drafting = await evaluate(`() => {const f=document.getElementById('followup');f.value='What should I check next at ${width}px?';f.dispatchEvent(new Event('input'));return {status:document.getElementById('chat-status').textContent,editable:!f.disabled,sendDisabled:document.getElementById('followup-submit').disabled,y:document.getElementById('reader').scrollTop};}`);
     assert.equal(drafting.status, 'Agent is replying');
     assert.equal(drafting.editable, true);
     assert.equal(drafting.sendDisabled, true);
@@ -118,21 +125,51 @@ try {
       citations: [{ revision_id: doc.id, block_id: request.block.id, quote: request.quote }] });
     await waitFor(() => events.some(e => e.type === 'saved' && e.request_id === request.request_id));
     await delay(2200);
-    const arrived = await evaluate(`() => ({y:scrollY,draft:document.getElementById('followup').value,status:document.getElementById('chat-status').textContent})`);
+    const arrived = await evaluate(`() => ({y:document.getElementById('reader').scrollTop,draft:document.getElementById('followup').value,status:document.getElementById('chat-status').textContent})`);
     assert.equal(arrived.y, drafting.y, 'answer arrival must not pull a reader out of the report');
     assert.equal(arrived.draft, `What should I check next at ${width}px?`);
     assert.equal(arrived.status, 'Reply saved');
     await evaluate(`() => {document.getElementById('notice-chat').click();return true;}`);
-    const chat = await evaluate(`() => {const p=document.getElementById('threads-panel'),l=document.getElementById('messages'),f=document.getElementById('followup-submit');return {panelClient:p.clientHeight,panelScroll:p.scrollHeight,logClient:l.clientHeight,logScroll:l.scrollHeight,followupBottom:f.getBoundingClientRect().bottom,height:innerHeight,contextOpen:document.getElementById('context-details').open};}`);
+    const chat = await evaluate(`() => {const p=document.getElementById('threads-panel'),l=document.getElementById(innerHeight<=600?'threads-panel':'chat-scroll'),r=document.getElementById('reader'),f=document.getElementById('followup-submit'),box=p.getBoundingClientRect();return {panelClient:p.clientHeight,panelScroll:p.scrollHeight,logClient:l.clientHeight,logScroll:l.scrollHeight,followupBottom:f.getBoundingClientRect().bottom,height:innerHeight,contextOpen:document.getElementById('context-details').open,top:box.top,bottom:box.bottom,right:box.right,width:innerWidth,readerRight:r.getBoundingClientRect().right,headerBottom:document.querySelector('.site-header').getBoundingClientRect().bottom,pageScroll:document.documentElement.scrollHeight,pageClient:document.documentElement.clientHeight,radius:getComputedStyle(p).borderRadius,shadow:getComputedStyle(p).boxShadow,sendName:f.getAttribute('aria-label'),sendText:f.textContent,sendWidth:f.getBoundingClientRect().width};}`);
     assert.equal(chat.contextOpen, false);
-    if (width === 1440) {
+    assert.equal(chat.right, chat.width, 'chat reaches right viewport edge');
+    assert.equal(chat.top, chat.headerBottom, 'chat starts directly below header');
+    assert.equal(chat.bottom, chat.height, 'chat fills available height');
+    assert.equal(chat.radius, '0px');
+    assert.equal(chat.shadow, 'none');
+    assert.equal(chat.pageScroll, chat.pageClient, 'no document-level scroll');
+    assert.equal(chat.sendName, 'Send message');
+    assert.equal(chat.sendText, '');
+    assert.equal(chat.sendWidth, 44);
+    if (width > 700) assert.equal(chat.readerRight, chat.width - (width <= 900 ? 320 : width <= 1100 ? 330 : Math.max(360, Math.min(480, width * .3))), 'report scrollbar boundary is beside chat');
+    assert.ok(chat.logScroll > chat.logClient, 'chat has one independent scroll region');
+    if (height > 600) {
       assert.ok(chat.panelScroll <= chat.panelClient + 2, 'no second chat panel scrollbar');
-      assert.ok(chat.logScroll > chat.logClient, 'only history scrolls in wide chat');
-      assert.ok(chat.followupBottom <= chat.height, 'follow-up remains reachable in wide chat');
-    } else assert.ok(chat.logScroll <= chat.logClient + 2, 'narrow chat uses page scroll, not nested history');
+      assert.ok(chat.followupBottom <= chat.height, 'follow-up remains visible');
+    }
+    const independent = await evaluate(`() => {const r=document.getElementById('reader'),c=document.getElementById(innerHeight<=600?'threads-panel':'chat-scroll');const before=r.scrollTop;c.scrollTop+=80;const after=r.scrollTop,chat=c.scrollTop;if(innerWidth>700)r.scrollTop+=100;return {before,after,chat,chatAfter:c.scrollTop,page:scrollY};}`);
+    assert.equal(independent.before, independent.after);
+    assert.equal(independent.chat, independent.chatAfter);
+    assert.equal(independent.page, 0);
+    geometry.push({ width, height, chat, independent });
+    if (width <= 700) {
+      const switched = await evaluate(`() => {const r=document.getElementById('reader'),c=document.getElementById('chat-scroll');const chat=c.scrollTop;document.getElementById('show-report').click();r.scrollTop=240;document.getElementById('show-chat').click();const retained=c.scrollTop;document.getElementById('show-report').click();const report=r.scrollTop;document.getElementById('show-chat').click();return {chat,retained,report,hidden:r.hidden};}`);
+      assert.equal(switched.chat, switched.retained);
+      assert.equal(switched.report, 240);
+      assert.equal(switched.hidden, true);
+    }
+    if (height > 600) {
+      // Native keyboard scroll, not only synthetic scrollTop assignments.
+      const beforeKey = await evaluate(`() => {const r=document.getElementById('reader'),c=document.getElementById('chat-scroll');c.scrollTop=0;c.focus({preventScroll:true});return r.scrollTop;}`);
+      await c('press', 'PageDown'); await delay(300);
+      const afterKey = await evaluate(`() => ({report:document.getElementById('reader').scrollTop,chat:document.getElementById('chat-scroll').scrollTop,page:scrollY})`);
+      assert.equal(afterKey.report, beforeKey);
+      assert.ok(afterKey.chat > 0, 'keyboard scroll works within the named chat region');
+      assert.equal(afterKey.page, 0);
+    }
     await shot(`${width}-answer`);
     const contextFit = await evaluate(`() => {document.getElementById('context-details').open=true;const p=document.getElementById('threads-panel');return {client:p.clientHeight,scroll:p.scrollHeight};}`);
-    assert.ok(contextFit.scroll <= contextFit.client + 2, 'expanded context must not make the panel overflow');
+    if (height > 600) assert.ok(contextFit.scroll <= contextFit.client + 2, 'expanded context stays in chat scroll, never a second panel scrollbar');
     await evaluate(`() => {document.getElementById('context-details').open=false;return true;}`);
     await evaluate(`() => {const f=document.getElementById('followup');f.scrollIntoView({block:'center'});f.focus({preventScroll:true});return true;}`);
     await shot(`${width}-composer`);
@@ -179,7 +216,7 @@ try {
   assert.match(alert.text, /Replies are paused/);
   assert.ok(alert.top >= 0 && alert.bottom <= alert.height, 'loss is visible while reading a scrolled report');
   await shot('listening-loss');
-  const failed = await evaluate(`() => {const r=document.querySelector('.message.failed');r.scrollIntoView({block:'center'});return {status:document.getElementById('chat-status').textContent,explanation:r.textContent,count:document.querySelectorAll('.message').length};}`);
+  const failed = await evaluate(`() => {document.getElementById('show-chat').click();const r=document.querySelector('.message.failed');r.scrollIntoView({block:'center'});return {status:document.getElementById('chat-status').textContent,explanation:r.textContent,count:document.querySelectorAll('.message').length};}`);
   assert.equal(failed.status, 'Reply failed · question saved');
   assert.equal(failed.count, 6);
   assert.match(failed.explanation, /disconnect|stopped/i);
@@ -189,11 +226,29 @@ try {
   assert.equal(restored.status, 'Reply failed · question saved');
   assert.equal(restored.count, 6);
   assert.match(restored.question, /Keep this interrupted question/);
-  assert.equal(restored.revision, `Passage · revision ${doc.id}`);
+  assert.equal(restored.revision, 'Quoted passage');
   assert.equal(restored.collapsed, true);
+  await c('resize', '1440', '1000');
+  const anchor = await evaluate(`() => {document.getElementById('show-report').click();const r=document.getElementById('reader');r.scrollTop=900;const blocks=[...document.querySelectorAll('#report [data-block-id]')];blocks.sort((a,b)=>Math.abs(a.getBoundingClientRect().top-r.getBoundingClientRect().top-16)-Math.abs(b.getBoundingClientRect().top-r.getBoundingClientRect().top-16));const p=blocks[0];return {id:p.id,offset:p.getBoundingClientRect().top-r.getBoundingClientRect().top,chat:document.getElementById('chat-scroll').scrollTop};}`);
+  const updatedSource = source.replace('# Orchard review', '# Orchard review\n\nAn added introduction from the synthetic author.');
+  app.store.importReport({title:'Orchard review', source:updatedSource});
+  await delay(2200);
+  const updated = await evaluate(`() => ({offset:document.getElementById('${anchor.id}').getBoundingClientRect().top-document.getElementById('reader').getBoundingClientRect().top,chat:document.getElementById('chat-scroll').scrollTop})`);
+  assert.ok(Math.abs(updated.offset-anchor.offset) < 2, 'live revision keeps a safe report anchor inside its pane');
+  assert.equal(updated.chat, anchor.chat, 'report revision does not move chat reading');
+  await shot('live-revision-wide');
+  await c('resize', '390', '844');
+  await evaluate(`() => {document.getElementById('show-report').click();document.getElementById('reader').scrollTop=400;document.getElementById('show-chat').click();return true;}`);
+  app.store.importReport({title:'Orchard review', source:updatedSource+'\n\nOne more synthetic update.'});
+  await delay(2200);
+  const hiddenUpdate = await evaluate(`() => {const r=document.getElementById('reader'),hidden=r.hidden;document.getElementById('show-report').click();return {hidden,y:r.scrollTop};}`);
+  assert.equal(hiddenUpdate.hidden, true);
+  assert.equal(hiddenUpdate.y, 400, 'hidden report revision retains approximate saved position');
+  await shot('live-revision-narrow');
+  writeFileSync(`${evidence}/geometry.json`, JSON.stringify(geometry, null, 2));
   writeFileSync(`${evidence}/console.txt`, await c('console'));
   writeFileSync(`${evidence}/network.txt`, await c('network'));
-  writeFileSync(`${evidence}/result.json`, JSON.stringify({ result: 'passed', viewports: ['1440x1000', '1280x720', '390x844', '320x844'], handoffEvents: events.map(e => e.type), source }, null, 2));
+  writeFileSync(`${evidence}/result.json`, JSON.stringify({ result: 'passed', viewports: ['1440x1000', '1280x720', '390x844', '320x844', '844x390'], handoffEvents: events.map(e => e.type), source }, null, 2));
   console.log(`Browser layout regressions passed. Evidence: ${evidence}`);
 } finally {
   input.end();

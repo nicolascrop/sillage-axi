@@ -427,3 +427,81 @@ CHROME_DEVTOOLS_AXI_SESSION=your-verified-session npm run test:browser
 Limitations remain: no physical touch keyboard, screen-reader session, exhaustive
 zoom/browser coverage or model-understanding claim. The optional Chrome test is
 not part of offline `npm test`. Remote delivery and CI are separate later gates.
+
+## Delta edge-to-edge workspace recovery
+
+Candidate implementation on `fm/sillage-delta-presentation-recovery`, in an isolated
+worktree. The supplied partial patch was reviewed and applied to the current
+HTML/CSS, then completed with reader navigation, scroll ownership, icon state and
+notification behavior. The [Zed reference](https://zed.dev/img/agentic/posters/review-poster.webp)
+was inspected through `chrome-devtools-axi`; its split workspace informed the
+layout, not its tools, provider controls or branding.
+
+```sh
+npm test
+npm run check
+git diff --check
+CHROME_DEVTOOLS_AXI_BROWSER_URL=http://127.0.0.1:9223 \
+CHROME_DEVTOOLS_AXI_SESSION=your-verified-session npm run test:browser
+```
+
+The current layout supersedes the page-scrolling narrow/short fallback described
+in earlier evidence above. Chat now meets the header, viewport bottom and right
+edge without an inset card. The report scrollbar borders it directly. Narrow
+screens explicitly switch Report / Chat; short screens scroll the entire chat
+rather than clipping its composer. English UI and initially collapsed Contents
+are retained, now at every width. Original revisions, exact source snapshots and
+citations remain available in disclosures, not repetitive primary labels.
+
+- Executable reader DOM regressions cover pane switching, resize/focus behavior,
+  Contents and skip-link navigation, source icons, retained drafts, icon accessible
+  names and saving/retry feedback. Existing exact-history/retry/error, conservative
+  revision and idle-poll identity tests remain in place.
+- New reply acknowledgement uses the existing v1 per-turn PATCH route, only for
+  immutable agent turns in the displayed snapshot. An executable race test saves
+  another answer during acknowledgement and verifies it stays indicated. Opening
+  the Chat pane alone never marks a reply read. Reload preserves acknowledged state.
+- Chrome exposed that a hidden report returns `scrollTop === 0`, even when it
+  restores the prior position on ordinary view switching. A workflow update while
+  hidden would therefore discard that position. The reader now keeps its saved
+  offset explicitly; a controlled DOM regression models this real browser behavior.
+
+Browser results and remaining limitations are recorded with the final candidate
+validation below. All runtime fixtures use disposable SQLite and loopback
+HTTP/JSON/JSONL, without a model or any change to provider ownership, persistence,
+configuration names, historical aliases, routes or exposure boundaries. Temporary
+artifacts remain gitignored under `.data/`; no reader data is committed.
+
+Final local candidate validation used Node **24.18.1** and existing loopback
+Chrome **153**, via an isolated `chrome-devtools-axi` session:
+
+- **96 tests passed**, including **29 reader DOM tests**. `npm run check` and
+  `git diff --check` passed. These commands remain offline after dependency setup.
+- `npm run test:browser` passed at **1440×1000, 1280×720, 390×844, 320×844 and
+  844×390**. Geometry asserts chat top equals header bottom, chat bottom/right
+  equal viewport edges, zero radius/shadow, no global overflow, and adjacent
+  report/chat boundaries when wide. At 1440px the boundary is **x=1008** and the
+  chat extends to **x=1440**, from **y=113** to **y=1000**. Report/chat scroll
+  independence is checked in both directions; native PageDown scrolls only chat.
+- The same browser flow covers report-first save confirmation, narrow pane/scroll
+  retention, visible 44px send icons with accessible names, actual Ctrl+Enter
+  submission, safe original citations, expanded-context containment, retained
+  disclosures/focus across replies, and queued/draft/failed/reloaded history via
+  the real author-owned JSONL handoff. Short-window question bubbles scroll to
+  their action; short-window chat scrolls to its composer with no page movement.
+  Visible and hidden report revisions retain safe/approximate positions without
+  moving chat. Final browser console was empty; recorded requests were loopback.
+- Screenshots and geometry were inspected in
+  `.data/test/chat-browser-1879786/`, including wide/narrow answers, 320px
+  report-first layout, short-window composer and live revisions. A supplemental
+  final-code pass at **2560×1000, 800×900 and 320×480** verified edge bounds,
+  no global overflow, intermediate Contents overlay/Escape and keyboard-reachable
+  send controls while replies were paused. Its screenshots and geometry are in
+  `.data/delta/`; console was empty. No shared browser or reader service was stopped.
+
+These are synthetic transport/layout fixtures, **not model inference**. Native
+PageDown, Ctrl+Enter and Escape supplement DOM-driven clicks; physical touch,
+virtual keyboards, screen readers, forced colors, exhaustive zoom and other
+browsers remain unverified. Chrome validation is opt-in, not part of offline CI's
+`npm test`. No publication, remote CI or merge is claimed by this local evidence;
+the committed branch proceeds through the separate no-mistakes delivery path.
