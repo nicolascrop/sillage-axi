@@ -483,12 +483,14 @@ Chrome **153**, via an isolated `chrome-devtools-axi` session:
   report/chat boundaries when wide. At 1440px the boundary is **x=1008** and the
   chat extends to **x=1440**, from **y=113** to **y=1000**. Report/chat scroll
   independence is checked in both directions; native PageDown scrolls only chat.
-- The same browser flow covers report-first save confirmation, narrow pane/scroll
-  retention, visible 44px send icons with accessible names, actual Ctrl+Enter
-  submission, safe original citations, expanded-context containment, retained
-  disclosures/focus across replies, and queued/draft/failed/reloaded history via
-  the real author-owned JSONL handoff. Short-window question bubbles scroll to
-  their action; short-window chat scrolls to its composer with no page movement.
+- The same browser flow covered report-first save confirmation, narrow pane/scroll
+  retention, the then-current visible 44px send icons with accessible names,
+  actual Ctrl+Enter submission, safe original citations, expanded-context
+  containment, retained disclosures/focus across replies, and
+  queued/draft/failed/reloaded history via the real author-owned JSONL handoff.
+  The unified-composer follow-up below records the current 32px send target.
+  Short-window question bubbles scroll to their action; short-window chat
+  scrolls to its composer with no page movement.
   Visible and hidden report revisions retain safe/approximate positions without
   moving chat. Final browser console was empty; recorded requests were loopback.
 - Screenshots and geometry were inspected in
