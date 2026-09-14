@@ -1128,6 +1128,20 @@ test('question light dismissal preserves inside clicks, outside focus, replaceme
   assert.equal(app.store.threads().length, 0);
 });
 
+test('selection completion does not exempt controls inside the selected passage', async t => {
+  const app = await service(t, '# Heading\n\nAn exact **quoted** [link](https://example.com) passage.');
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const paragraph = ui.$('report').querySelector('p');
+  const range = ui.window.document.createRange();
+  range.selectNodeContents(paragraph.querySelector('strong'));
+  ui.window.getSelection().addRange(range);
+  paragraph.dispatchEvent(new ui.window.MouseEvent('mouseup', { bubbles: true }));
+  assert.equal(ui.$('bubble').hidden, false);
+  paragraph.querySelector('a').click();
+  assert.equal(ui.$('bubble').hidden, true);
+});
+
 test('question dismissal crosses an active whiteboard iframe without disabling annotation', async t => {
   const app = await service(t, '# Diagram\n\nFirst **quoted** passage.\n\nSecond passage.\n\n```mermaid\nflowchart LR\n A-->B\n```');
   const ui = await reader(app.origin);

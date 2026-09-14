@@ -682,8 +682,10 @@ document.addEventListener('pointerdown', dismissBubbleAtWhiteboardBoundary, true
 // Capture before a passage's click opens a replacement. A mouseup text selection
 // already opened its bubble, so the completing click must not dismiss that draft.
 document.addEventListener('click', event => {
+  const selectionCompletes = selectionHandled && bubble?.target && nearestPassage(event.target) === bubble.target
+    && !event.target.closest?.('a,button,input,textarea,summary,.wb-host');
   if (bubble && !$('bubble').contains(event.target) &&
-    !(selectionHandled && nearestPassage(event.target) === bubble.target)) {
+    !selectionCompletes) {
     closeBubble($('bubble').contains(document.activeElement));
   }
   if (!$('review-menu').hidden && !$('review-actions').contains(event.target)) {
