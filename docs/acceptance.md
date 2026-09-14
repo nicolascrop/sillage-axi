@@ -635,3 +635,25 @@ restarted or used as a test fixture. No runtime provider, API/schema, historical
 alias, or loopback boundary changed. Physical touch/virtual keyboards, screen-reader
 sessions, forced colors and comprehensive accessibility certification are not
 claimed. Remote publication/CI are separate no-mistakes gates, not these local tests.
+
+## Compact Contents disclosure — 2026-09-14
+
+- `npm test`: Node's test runner reported **tests 125, pass 125, fail 0**; `npm run check`
+  and `git diff --check` pass. The count includes generated/parameterized cases,
+  rather than only top-level test declarations.
+  The Contents DOM regression exercises stable labelling, synchronized expanded/
+  hidden state, polling, unchanged report nodes, Escape focus return and heading
+  navigation across both responsive breakpoints. It failed on the original UI's
+  missing icons before the change.
+- `test-support/contents-browser.js`, also called by `npm run test:browser`, checks
+  actual geometry, the accessibility tree, the state-dependent chevron, native
+  Tab/Enter/Space/Escape, a 44px-high target, and side-panel versus overlay layout.
+  Viewport emulation avoids headed Chrome's minimum window width masking mobile
+  regressions. The check failed against the original UI's absent chevron.
+- This pass ran that helper in the approved local Chrome against a synthetic
+  `file://` fixture executing the reader's HTML, CSS and JavaScript with stubbed
+  read-only API responses; no second Sillage service was started. Checks passed at
+  **1440×1000, 1000×720, 901×844, 900×844, 701×844, 700×844, 390×844, 320×844 and
+  844×390**. Local screenshots/logs remain gitignored in
+  `.data/test/contents-preview/`. The full HTTP-backed browser suite was not rerun
+  for this pass; physical touch and screen-reader sessions are not claimed.

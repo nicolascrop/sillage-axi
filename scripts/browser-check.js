@@ -11,6 +11,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { decode } from '@toon-format/toon';
 import { createApp } from '../src/server.js';
 import { runLocalAgent } from '../src/local-agent.js';
+import { checkContentsToggle } from '../test-support/contents-browser.js';
 
 if (!/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(process.env.CHROME_DEVTOOLS_AXI_BROWSER_URL || '')) {
   throw new Error('Set CHROME_DEVTOOLS_AXI_BROWSER_URL to an existing local Chrome and configure chrome-devtools-axi first.');
@@ -81,6 +82,7 @@ const assertCaretComposer = style => {
   assert.equal(style.hint, 'Ctrl / ⌘ + Enter to send');
 };
 const geometry = [];
+const viewports = [[1440, 1000], [1280, 720], [901, 844], [900, 844], [701, 844], [700, 844], [390, 844], [320, 844], [844, 390]];
 try {
   send({ type: 'ready', worker: 'layout-test-fixture-not-inference', presentation: { title: 'Orchard review', source, operation_key: 'browser-presentation', expected_revision_id: null, handoff } });
   await waitFor(() => events.some(e => e.type === 'connected'));
@@ -94,8 +96,8 @@ try {
   page = pages.find(p => p.url.replace(/\/$/, '') === origin)?.id;
   assert.ok(page, 'the fixture must have its own explicitly selected page');
   await c('selectpage', String(page));
-  for (const [width, height] of [[1440, 1000], [1280, 720], [390, 844], [320, 844], [844, 390]]) {
-    await c('resize', String(width), String(height));
+  for (const [width, height] of viewports) {
+    await c('emulate', '--viewport', `${width}x${height}x1`);
     await c('open', origin);
     const initial = await evaluate(`() => ({collapsed:document.getElementById('toc-panel').hidden, empty:document.getElementById('chat-empty').textContent,finderHidden:document.getElementById('conversation-list').hidden,select:!!document.querySelector('#threads-panel select'),actions:!!document.getElementById('conversation-actions'), titleHidden:document.getElementById('report-title').hidden, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth})`);
     assert.equal(initial.collapsed, true);
@@ -107,6 +109,7 @@ try {
       assert.match(initial.empty, /Ask about a passage to start/);
       assert.equal(initial.finderHidden, true);
     }
+    await checkContentsToggle({ evaluate, snapshot, shot, width, press: async key => { await snapshot(); await c('press', key); } });
     await shot(`${width}-initial`);
     const table = await evaluate(`() => {const e=document.querySelector('.table-scroll');e.scrollIntoView({block:'center'});const t=e.querySelector('table');return {width:e.clientWidth,scroll:e.scrollWidth,cell:t.querySelector('td').clientWidth,height:t.getBoundingClientRect().height,tabIndex:e.tabIndex};}`);
     assert.ok(table.cell >= 120, 'table words must not be crushed to a few characters');
@@ -271,7 +274,7 @@ try {
   assert.match(restored.question, /Keep this interrupted question/);
   assert.equal(restored.revision, 'Quoted passage');
   assert.equal(restored.collapsed, true);
-  await c('resize', '1440', '1000');
+  await c('emulate', '--viewport', '1440x1000x1');
   const anchor = await evaluate(`() => {document.getElementById('show-report').click();const r=document.getElementById('reader');r.scrollTop=900;const blocks=[...document.querySelectorAll('#report [data-block-id]')];blocks.sort((a,b)=>Math.abs(a.getBoundingClientRect().top-r.getBoundingClientRect().top-16)-Math.abs(b.getBoundingClientRect().top-r.getBoundingClientRect().top-16));const p=blocks[0];return {id:p.id,offset:p.getBoundingClientRect().top-r.getBoundingClientRect().top,chat:document.getElementById('chat-scroll').scrollTop};}`);
   const updatedSource = source.replace('# Orchard review', '# Orchard review\n\nAn added introduction from the synthetic author.');
   app.store.importReport({title:'Orchard review', source:updatedSource});
@@ -280,7 +283,7 @@ try {
   assert.ok(Math.abs(updated.offset-anchor.offset) < 2, 'live revision keeps a safe report anchor inside its pane');
   assert.equal(updated.chat, anchor.chat, 'report revision does not move chat reading');
   await shot('live-revision-wide');
-  await c('resize', '390', '844');
+  await c('emulate', '--viewport', '390x844x1');
   await evaluate(`() => {document.getElementById('show-report').click();document.getElementById('reader').scrollTop=400;document.getElementById('show-chat').click();return true;}`);
   app.store.importReport({title:'Orchard review', source:updatedSource+'\n\nOne more synthetic update.'});
   await delay(2200);
@@ -291,7 +294,7 @@ try {
   writeFileSync(`${evidence}/geometry.json`, JSON.stringify(geometry, null, 2));
   writeFileSync(`${evidence}/console.txt`, await c('console'));
   writeFileSync(`${evidence}/network.txt`, await c('network'));
-  writeFileSync(`${evidence}/result.json`, JSON.stringify({ result: 'passed', viewports: ['1440x1000', '1280x720', '390x844', '320x844', '844x390'], handoffEvents: events.map(e => e.type), source }, null, 2));
+  writeFileSync(`${evidence}/result.json`, JSON.stringify({ result: 'passed', viewports: viewports.map(([width, height]) => `${width}x${height}`), handoffEvents: events.map(e => e.type), source }, null, 2));
   console.log(`Browser layout regressions passed. Evidence: ${evidence}`);
 } finally {
   input.end();
