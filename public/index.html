@@ -15,7 +15,11 @@
     <div class="topbar">
       <div class="brand"><img src="/sillage.svg" width="28" height="28" alt=""><strong>Sillage AXI</strong></div>
       <div class="toolbar">
-        <button id="toc-toggle" type="button" aria-expanded="false" aria-controls="toc-panel">Contents</button>
+        <button id="toc-toggle" type="button" aria-expanded="false" aria-controls="toc-panel">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6h12M9 12h12M9 18h12M3 6h1M3 12h1M3 18h1"/></svg>
+          <span>Contents</span>
+          <svg class="toc-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
         <a id="show-report" class="narrow-only" href="#reader">Report</a>
         <a id="show-chat" href="#threads-panel">Chat</a>
         <a id="new-reply" href="#threads-panel" hidden>New reply</a>

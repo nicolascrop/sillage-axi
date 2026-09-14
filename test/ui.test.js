@@ -190,6 +190,49 @@ test('local drafts close silently with button, Escape, replacement and page depa
   assert.equal(ui.$('report').firstElementChild, reportNode);
 });
 
+test('Contents has a stable labelled control and synchronized disclosure state at every breakpoint', async t => {
+  const app = await service(t);
+  for (const width of [1440, 901, 900, 701, 700, 390, 320]) {
+    const ui = await reader(app.origin, window => { window.innerWidth = width; });
+    t.after(() => ui.dom.window.close());
+    const toggle = ui.$('toc-toggle'), panel = ui.$('toc-panel');
+    const reportNode = ui.$('report').firstElementChild;
+    assert.equal(toggle.tagName, 'BUTTON');
+    assert.equal(toggle.type, 'button');
+    assert.equal(toggle.tabIndex, 0);
+    assert.equal(toggle.getAttribute('aria-controls'), panel.id);
+    assert.equal(toggle.querySelectorAll('svg').length, 2);
+    for (const icon of toggle.querySelectorAll('svg')) {
+      assert.equal(icon.getAttribute('aria-hidden'), 'true');
+      assert.equal(icon.getAttribute('focusable'), 'false');
+    }
+    const assertState = expanded => {
+      assert.equal(toggle.textContent.trim(), 'Contents', 'the visible accessible label never changes');
+      assert.equal(toggle.getAttribute('aria-expanded'), String(expanded));
+      assert.equal(panel.hidden, !expanded);
+      assert.equal(ui.$('layout').classList.contains('toc-collapsed'), !expanded);
+      assert.equal(ui.$('report').firstElementChild, reportNode, 'toggling does not rebuild the report');
+    };
+    assertState(false);
+    ui.$('reader').scrollTop = 180;
+    toggle.focus(); toggle.click();
+    assertState(true);
+    await ui.poll(); assertState(true);
+    assert.equal(ui.$('reader').scrollTop, 180);
+    toggle.click(); assertState(false);
+    toggle.click(); assertState(true);
+    ui.$('toc').querySelector('a').focus();
+    ui.window.document.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    assertState(false);
+    assert.equal(ui.window.document.activeElement, toggle, 'Escape returns focus to the trigger');
+    toggle.click();
+    ui.$('toc').querySelector('a').click();
+    assertState(width > 900);
+    assert.equal(ui.window.document.activeElement, reportNode, 'heading navigation still focuses the report');
+    assert.equal(ui.window.localStorage.length, 0, 'Contents preference is not persisted');
+  }
+});
+
 test('selection rejects multiple passages and oversized quotes; keyboard selection retains the exact substring', async t => {
   const app = await service(t, 'A short passage.\n\n' + 'word '.repeat(500));
   const ui = await reader(app.origin);

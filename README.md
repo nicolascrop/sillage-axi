@@ -265,7 +265,10 @@ also need scrolling to reach the question action.
 At 700px width or less, **Report / Chat** explicitly selects the visible full-height
 pane; hidden content is outside the keyboard order. On intermediate widths Contents
 opens as an overlay; choose a heading or press Escape to close it. Contents starts
-collapsed everywhere. English remains the interface language, with author-supplied
+collapsed everywhere. Its compact button pairs a list icon and **Contents** with a
+chevron pointing down when closed and up when open. The label stays stable for
+assistive technology; Enter or Space toggles it, with visible keyboard focus and a
+44px-high target at every width. English remains the interface language, with author-supplied
 language metadata retained for report/quote pronunciation.
 
 Compact context, distinct question cards, unboxed Markdown replies and on-demand

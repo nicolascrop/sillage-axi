@@ -26,6 +26,11 @@ h2 { font-size: 1.45rem; }
 .brand strong { font-size: 1.2rem; letter-spacing: .02em; }
 .toolbar { flex-wrap: wrap; justify-content: flex-end; font-size: .85rem; }
 .toolbar a, #notice-chat { display: inline-flex; align-items: center; padding: .5rem; gap: .3rem; }
+#toc-toggle { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; padding: .25rem .5rem; border-radius: 5px; line-height: 1.2; white-space: nowrap; }
+#toc-toggle svg { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#toc-toggle .toc-chevron { width: 12px; height: 12px; }
+#toc-toggle[aria-expanded=true] { border-color: var(--accent); }
+#toc-toggle[aria-expanded=true] .toc-chevron { transform: rotate(180deg); }
 #new-reply { color: #e8c797; }
 .narrow-only { display: none !important; }
 .toolbar [aria-current=page] { color: #fff; text-decoration-thickness: 2px; text-underline-offset: .4rem; }
