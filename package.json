@@ -23,11 +23,20 @@
     "local-agent": "node src/local-agent.js",
     "skill:generate": "node scripts/generate-skill.js",
     "skill:check": "node scripts/generate-skill.js --check",
-    "test:browser": "node scripts/browser-check.js"
+    "test:browser": "node scripts/browser-check.js",
+    "build": "node scripts/build-whiteboard.js",
+    "pretest": "npm run build",
+    "test:whiteboards:browser": "node scripts/whiteboard-browser-check.js"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "0.18.1",
+    "@excalidraw/mermaid-to-excalidraw": "2.2.2",
     "@toon-format/toon": "4.1.1",
+    "esbuild": "0.28.2",
     "markdown-it": "14.3.1",
+    "mermaid": "11.12.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "sanitize-html": "2.17.7"
   },
   "devDependencies": {

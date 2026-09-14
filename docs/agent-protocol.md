@@ -193,3 +193,60 @@ All pre-existing threads are singleton conversations automatically.
 Reader chat uses these additive projections. Legacy CLI lists still count and
 inspect individual v1 turns; no existing list semantics change. There is no
 fuzzy regrouping, moving citations, message deletion or provider fallback.
+
+## Whiteboard API and feedback
+
+This is additive to `sillage-agent-v1`: no routes, identifiers, SILLAGE_* settings,
+leases or JSONL event names are replaced. Mermaid source is extracted from stored
+Markdown tokens. `GET /api/document` adds `diagrams:[{block_id,source,source_hash}]`;
+the block ID remains the ordinary semantic passage/citation identity.
+
+- `GET /api/whiteboards/REVISION/BLOCK_ID` → `{diagram,saved}`. The server verifies
+  the diagram in that exact revision; `diagram` includes `revision_id` and a display
+  `index`. `saved` is the latest scene snapshot, or null. Only an exact continuous
+  semantic block/source match can offer an inherited snapshot from a prior revision;
+  its `revision_id` remains original until saved against the new revision.
+- `POST /api/whiteboards/REVISION/BLOCK_ID` with
+  `{source_hash,operation_key,expected_version,text_metrics_version,scene,baseline,derived_from?}`
+  → 201 immutable snapshot `{id,revision_id,block_id,source_hash,created_at,
+  text_metrics_version,derived_from,scene,baseline}`. `expected_version` is the
+  latest snapshot ID **for that revision**, or null before its first save.
+  `derived_from` records a safely inherited snapshot, never a fuzzy reattachment.
+  Source hashes must match; version conflicts return 409 without overwriting edits.
+  Retry an uncertain acknowledgement with the **identical operation key and payload**.
+  Reusing a key with different content is 409. Identical view-only saves reuse a
+  snapshot but still record their retry keys. Baselines are immutable apart from a
+  versioned, expansion-only font-metric repair. Scene appState retains only bounded
+  view coordinates/zoom, never theme or background; links/embeddables and remote
+  file URLs are not accepted as active resources.
+- `GET /api/whiteboards` → bounded history metadata: latest snapshot per exact
+  revision/diagram, most recent 100. `GET /api/whiteboard-snapshots/ID` → that immutable
+  full snapshot. No arbitrary path or image export endpoint exists. History is
+  additive SQLite tables (`whiteboard_versions`, `whiteboard_operations`,
+  `whiteboard_lineage`), without changing v1 records or schema version 2.
+- `POST /api/whiteboards/REVISION/BLOCK_ID/feedback` with
+  `{snapshot_id,note?,client_key}` → 201 ordinary v1 thread. The snapshot must belong
+  to that exact revision/diagram; optional note is at most 2,000 characters.
+  The server computes the summary from its immutable snapshot and baseline, never
+  trusting caller-supplied summary lines/stats. Ordinary question-key reconciliation
+  makes identical feedback retries safe, including after a newer report appears.
+
+Whiteboard conversations/reservations add `context.whiteboard`:
+`{type:"excalidraw-scene",revision_id,block_id,source_hash,snapshot_id,derived_from,
+image_fallback,summary_lines,stats,delivery}`. The summary has at most 40 lines of
+200 characters plus one omitted-changes line. Stats count added, removed, moved,
+relabeled and drawn elements. **Only the bounded text/geometry summary and note are
+automatically delivered, not scene JSON or pixels.** `delivery` explicitly explains
+that visual/freehand meaning and style-only edits may be missing. Do not claim to
+see a preview. Original report/context/handoff and citation validation remain
+unchanged. Follow-ups retain the original snapshot reference and prior messages.
+Nothing grants permission to interpret an annotation as a command or to edit a
+repository/report. Mermaid remains authoritative; authorized changes use guarded
+report imports, not scene-to-source conversion.
+
+Scene writes alone have a 20 MB JSON cap, 5,000 elements, 128 embedded data images,
+20,000 characters per text element and 20,000 points per stroke. Other routes keep
+2 MB and the existing custom-header/Host/Origin guards. The opaque frame cannot use
+API CORS. Only allowlisted static whiteboard assets have public CORS for font loads;
+these contain no reader data. See [whiteboards](whiteboards.md) for the conversion
+matrix, local asset build, staleness UI and explicit limitations.

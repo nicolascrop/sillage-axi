@@ -59,7 +59,7 @@ node --test test/http.test.js test/ui.test.js
 
 The short human walkthrough is in [README.md](../README.md#walkthrough), using the two committed sample reports. A browser binary/`chrome-devtools-axi` was not available during the original implementation validation. **That initial pass did not include real-browser visual inspection.** jsdom exercised the reader's actual JavaScript against the local service, including selection, forms, close/reopen, polling and escaping, but cannot verify real layout/scroll geometry, CSP enforcement, or all accessibility behavior. The later UI delivery's accepted Chrome coverage and remaining limitations are recorded below.
 
-Excalidraw is intentionally an explicit unsupported, source-preserving block; there is no editor or unsafe HTML/SVG embed. See the [current reader walkthrough](../README.md#walkthrough) and [continuous conversation contract](agent-protocol.md#additive-continuous-conversations) for the additive chat model, conservative unmatched behavior and provider policy.
+That original version kept Excalidraw as an explicit unsupported, source-preserving block. Direct `excalidraw` fences still do; report Mermaid now uses the local editor described in the whiteboard evidence below and [whiteboard contract](whiteboards.md). No unsafe raw HTML/SVG embed was added. See the [current reader walkthrough](../README.md#walkthrough) and [continuous conversation contract](agent-protocol.md#additive-continuous-conversations) for the additive chat model, conservative unmatched behavior and provider policy.
 
 ## Public documentation follow-up
 
@@ -505,3 +505,80 @@ virtual keyboards, screen readers, forced colors, exhaustive zoom and other
 browsers remain unverified. Chrome validation is opt-in, not part of offline CI's
 `npm test`. No publication, remote CI or merge is claimed by this local evidence;
 the committed branch proceeds through the separate no-mistakes delivery path.
+
+## Inline Mermaid / Excalidraw whiteboards — 2026-09-14
+
+Candidate implementation on isolated `fm/sillage-excalidraw-flowcharts`. Lavish
+AXI **0.1.45** at `7c64184adce8b2b18c1cb072779305303b8079d9` was inspected before
+implementation: SDK embedding, chrome/fullscreen teardown, frame conversion,
+font repair, source extraction, sidecar persistence, build/pins and browser tests.
+The [whiteboard contract](whiteboards.md) records the exact conversion matrix and
+Sillage's SQLite/provenance, opaque-frame and bounded-agent-delivery adaptations.
+
+```sh
+npm test
+npm run check
+git diff --check
+# Existing, authorized loopback Chrome; no browser download or reader setup.
+CHROME_DEVTOOLS_AXI_BROWSER_URL=http://127.0.0.1:9223 \
+CHROME_DEVTOOLS_AXI_SESSION=your-verified-session npm run test:whiteboards:browser
+```
+
+- Node **24.18.1**, npm **11.16.0**: **122 tests passed, zero failed**. Build, unit,
+  integration, SQLite reopen, HTTP, JSONL and executable reader DOM checks run
+  offline after dependency installation, with disposable databases. Syntax and
+  generated-skill freshness checks pass. Existing v1 aliases, lease/retry, exact
+  source/citations, conservative semantic reconciliation, report/chat and
+  initially collapsed Contents checks remain passing.
+- New deterministic checks cover exact diagram token/block identity; changed and
+  ambiguous-source rejection; immutable baseline and historical snapshots;
+  optimistic concurrency; durable operation-key retries (including view-only
+  writes); original-revision feedback and follow-ups; bounded summaries; font
+  repair ordering/expansion; duplicate edge IDs; scene size/type/resource limits;
+  rejected frame/API spoofing; and narrowly allowlisted opaque-origin font assets.
+- Real **Chrome 153.0.8010.36**, through `chrome-devtools-axi`, passed the synthetic
+  author-owned JSONL presentation/request/answer/saved flow. Every fixture report
+  fence gets an inline scene. Subgraph flowchart, parallel edges, sequence, class,
+  ER and state diagrams produced native shapes, not image regressions; Mermaid
+  node `A` remained stable even with duplicate upstream edge IDs. Pie produced a
+  clearly labeled local image that accepted a real text annotation, saved and
+  reloaded. Its image-fallback disclosure remains present after adding shapes.
+  Malformed input instead keeps escaped original source and an explicit failure.
+- Browser interactions cover the initial inert view/scroll mode; pointer
+  hit-testing outside the iframe; independent report/chat scrolling; native
+  PageDown; explicit annotation; real Excalidraw text editing; enlarged editing;
+  Escape from inside the frame returning to locked reading after flush; save and
+  reload; historical scene reopening; and feedback/citation identities checked
+  against SQLite and the actual authorized JSONL request. Feedback contains the
+  original report/block/source hash, immutable snapshot and bounded summary, not
+  scene JSON or pixels. Fixture replies are supplied text, **not model inference**.
+- A workflow import during annotation keeps the original editor with a visible
+  stale-revision banner. Finishing annotation converts the changed source into a
+  separate scene; the old edits remain in history and the original cited thread
+  becomes **passage to review**, never silently reattached.
+- Screenshots were inspected at **1440×1000**, **390×844** and **320×844**. Narrow
+  Report/Chat behavior is preserved; document width equals scroll width, inline
+  frames remain inside the reader, and enlarged surfaces fill exactly 390/320 by
+  844 pixels with annotation/feedback/close controls available. Explicit viewport
+  emulation is necessary because headed Linux Chrome clamps native window width.
+- Browser offline emulation leaves the editor usable and exposes failed autosaves.
+  **Retry save / reconnect** persists the exact pending edits after reconnection.
+  The real iframe rejects same-service parent DOM access with **SecurityError**.
+  The paginated retained network log for the final offline/reconnect fixture
+  contains only loopback requests, including local bundle/font bytes. Its console
+  contains expected offline failures plus browser deprecation/form-field issues,
+  not remote-font fallback failures. This is not an exhaustive hostile-document
+  CSP audit, nor a claim that Chrome's own background traffic is application traffic.
+
+Final browser evidence is gitignored under `.data/test/whiteboard-browser-229568/`:
+wide/narrow/enlarged, stale/history, conversion matrix, image-annotation reload and
+pending-save screenshots; `result.json`, network and console observations; synthetic
+SQLite. The preceding full pass is in `.data/test/whiteboard-browser-189282/`.
+The script selects its unique fixture page freshly before actions and cleans up
+its own page/service, never shared Chrome. Hardware wheel/touch gestures are not
+claimed: report scrolling uses the documented DevTools `eval` path and native
+PageDown because the AXI scroll wrapper is unavailable. Screen readers, physical
+virtual keyboards, other browsers, font coverage for every glyph and model
+understanding remain unverified. Browser validation is opt-in, not part of offline
+CI. No publication, remote CI or merge is claimed by this local candidate evidence;
+delivery follows the separate no-mistakes gate.

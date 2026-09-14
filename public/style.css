@@ -173,3 +173,23 @@ figcaption { color: #e8c797; font-size: .85rem; }
   #chat-scroll { overflow: visible; }
   #followup-form { margin-top: .5rem; }
 }
+
+/* The frame is inert to pointer/keyboard input until an explicit annotation action.
+   Wheel events therefore reach the report's existing scroller, not Excalidraw. */
+#report .wb-passage { display: block; padding: 0; border: 0; background: none; white-space: normal; }
+.wb-host { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.wb-tools { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; padding: .4rem; font-size: .8rem; }
+.wb-tools span { flex: 1; min-width: 120px; }
+.wb-tools button { padding: .4rem .6rem; font-size: .8rem; }
+.wb-canvas { position: relative; height: clamp(360px, 60vh, 620px); }
+.wb-canvas iframe { display: block; width: 100%; height: 100%; border: 0; }
+.wb-locked { pointer-events: none; }
+.wb-cover { position: absolute; inset: 0; width: 100%; border: 0; border-radius: 0; background: transparent; color: transparent; }
+.wb-cover:hover, .wb-cover:focus-visible { background: #0001; color: #e7e9ef; }
+#report .wb-local-status, .wb-local-status { margin: 0; padding: 0 .6rem .3rem; font-size: .75rem; overflow-wrap: anywhere; }
+.wb-source { margin-top: .5rem; font-size: .85rem; }
+.wb-enlarged { position: fixed; inset: 10px; z-index: 20; display: flex; flex-direction: column; border-radius: 8px; }
+.wb-enlarged .wb-canvas { flex: 1; min-height: 0; height: auto; }
+#whiteboard-history { font-size: .8rem; margin: .4rem 0; }
+#whiteboard-history-list { display: grid; gap: .4rem; }
+@media (max-width: 700px) { .wb-enlarged { inset: 0; border-radius: 0; } }

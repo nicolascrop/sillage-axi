@@ -1,6 +1,6 @@
 # Sillage AXI
 
-A small **local-only Markdown report reader** with a passage-linked conversation panel and durable history. One reader, one PC, one report with multiple revisions. Sillage AXI uses **no external AI provider**, telemetry, accounts, or cloud services.
+A small **local-only Markdown report reader** with a passage-linked conversation panel, annotatable Mermaid/Excalidraw whiteboards, and durable history. One reader, one PC, one report with multiple revisions. Sillage AXI uses **no external AI provider**, telemetry, accounts, or cloud services.
 
 ## Run
 
@@ -11,7 +11,7 @@ npm ci --ignore-scripts
 npm start
 ```
 
-Presenting a report includes supplying its Markdown/context and attaching the authoring agent (or its explicitly authorized delegate) through the local bridge before opening **http://127.0.0.1:3210**. The reader needs no import or connection setup. For a standalone fixture, use the explicit CLI import below with `examples/report.md`. Installing dependencies needs a registry connection once; running the app, fake agent, and tests afterward needs **no internet or secrets**. There are no CDN assets or external image requests.
+Presenting a report includes supplying its Markdown/context and attaching the authoring agent (or its explicitly authorized delegate) through the local bridge before opening **http://127.0.0.1:3210**. The reader needs no import or connection setup. For a standalone fixture, use the explicit CLI import below with `examples/report.md`. Installing dependencies needs a registry connection once; starting the service builds its editor and fonts locally. Running the app, fake agent, and tests afterward needs **no internet or secrets**. There are no CDN assets or external image requests.
 
 For a separate deterministic transport demo, answer **one** queued question in another terminal while no managed agent is connected:
 
@@ -22,8 +22,9 @@ npm run fake-agent
 Run it again for each question; an empty queue prints `{"status":"idle"}`. This is visibly labeled demo output, not an AI assessment. Nothing automatically selects or calls a model.
 
 ```sh
-npm test        # offline: rendering, database, HTTP, fake CLI, and reader DOM tests
+npm test        # offline: local bundle, rendering, SQLite, HTTP, bridge and reader DOM tests
 npm run check  # JavaScript syntax and generated-skill freshness checks
+npm run build  # optional explicit local Excalidraw/MD-to-diagram asset build
 ```
 
 ### Agent-facing CLI (AXI façade)
@@ -201,10 +202,33 @@ An additive conversation grouping powers continuous chat; existing CLI thread in
 can still inspect each turn independently. There is no provider-driven auto-editing or
 report switching. Any revision must come from the authorized authoring workflow.
 
+## Annotatable Mermaid diagrams
+
+Report `mermaid` fences become inline **Excalidraw whiteboards**, using Lavish's
+pinned converter. Flowcharts (including subgraphs), sequence, class, ER and state
+diagrams become shapes; other supported Mermaid types become images to annotate.
+**Annotate** explicitly enables editing; **View / scroll** restores normal reading.
+**Enlarge** opens the same editor above the reader. Original Mermaid source stays
+available and is never overwritten by scene data.
+
+Scenes and immutable snapshots autosave in SQLite. **Whiteboard history** reopens
+historical revisions; only exact, unambiguous semantic matches carry annotations
+forward. During active editing, a new report revision is announced without replacing
+the old editor. Finish editing to display the latest report; stale scenes are never
+silently merged. **Send feedback** saves a normal passage conversation bound to the
+exact revision/diagram/snapshot. The agent receives a bounded text/geometry summary
+and optional note, **not drawing pixels or scene JSON**. Explain freehand/style
+intent in the note. Existing authorized answering, follow-ups and citations apply.
+
+See [whiteboards](docs/whiteboards.md) for the Lavish comparison, conversion/fallback
+matrix, source/staleness rules, retry behavior, local-resource safeguards and limits.
+No reader setup, CDN fonts, cloud/collaboration service or new respondent is involved.
+
 ## Live report updates
 
 Open readers check the local service every two seconds and display workflow imports,
-**even with no conversations yet**. No reload button or WebSocket is required. Unchanged
+**even with no conversations yet**. Active whiteboard editing or a failed scene flush
+pauses report replacement with a notice until the original scene is safely retained. No reload button or WebSocket is required. Unchanged
 polls do not rebuild the report. A safe semantic reading anchor keeps its viewport offset;
 otherwise approximate scroll position is retained with a notice. Open chats and drafts
 keep their exact original revision and quote; changed or ambiguous context is never remapped.
@@ -271,11 +295,11 @@ Changed, deleted, split, merged, or ambiguous blocks get fresh IDs. Unmatched th
 ## Safety and extension points
 
 - **Rendering:** Markdown-it with raw HTML disabled, then a strict sanitize-html allowlist. Agent replies use the same Markdown-it and sanitize-html pipeline, without report passage IDs. Questions and citation quotes use DOM `textContent`. Images are explicit text placeholders, not network fetches. Relative file links are inert; generated Contents links work. Raw HTML, SVG, and arbitrary embeds do not execute.
-- **Local boundary:** hard-bound to IPv4 loopback, strict Host/Origin checks, no CORS, JSON plus a required custom write header, restrictive CSP, and no filesystem-serving endpoint. Other processes running as the local user can access the API; this is not an authentication or hostile-machine sandbox. Do not reverse-proxy or expose it to a LAN/public interface.
+- **Local boundary:** hard-bound to IPv4 loopback, strict Host/Origin checks, no API CORS, JSON plus a required custom write header, restrictive CSP, and no arbitrary filesystem-serving endpoint. Only allowlisted non-secret editor/font assets permit CORS for opaque sandboxed whiteboard frames. Other processes running as the local user can access the API; this is not an authentication or hostile-machine sandbox. Do not reverse-proxy or expose it to a LAN/public interface.
 - **Storage/protocol:** `src/store.js` owns SQLite transactions, snapshots, idempotency and leases; `src/relay.js` owns the managed local-agent lifecycle; and `src/server.js` exposes the local HTTP boundary. See [the v1 agent protocol](docs/agent-protocol.md) before writing an adapter. Full document text is supplied locally to a reserved worker; adopting any external provider needs a separate privacy decision.
 - **Agent trust:** report Markdown, questions, and agent replies are data, not executable instructions or permission to modify a project. Preserve the original revision and passage references; never silently move a thread to regenerated text. Do not put secrets in reports, questions, replies, or citations.
-- **Diagrams:** an `excalidraw` code fence becomes an explicit **Unsupported diagram · Excalidraw** figure with preserved, escaped source. The extension points are `codeRenderer` in `src/render.js` and `[data-diagram="excalidraw"]` in the reader. A future read-only, locally bundled established Excalidraw-compatible component can consume validated scene JSON there. It must preserve the enclosing block identity, bound scene complexity, and prevent remote images/fonts/links from auto-loading. No custom diagram editor or unsafe SVG/HTML fallback is included.
-- **UI:** plain JavaScript/CSS, Material Darker Air palette; no build, WebSockets, streaming, shell execution, vector search, or provider SDK.
-- **Limits:** 1,000,000 source characters / 20,000 lines / 5,000 passages per import, 2 MB API payloads, 4,000-character questions, 2,000-character UI selections. The local prototype migrates schema v1 to v2 for the managed reservation marker and refuses unknown future schema versions; handoffs and conversation groups use additive tables without changing v1 records or schema version. Resource isolation for very large/malicious documents remains out of scope.
+- **Diagrams:** report Mermaid tokens are enhanced by `public/whiteboards.js` into opaque local Excalidraw frames. `src/whiteboard-store.js` owns revision-bound scene history and bounded feedback. Direct `excalidraw` fences remain explicit unsupported figures with escaped source. See the [whiteboard contract](docs/whiteboards.md); no unsafe raw SVG/HTML fallback is included.
+- **UI:** plain JavaScript/CSS reader, Material Darker Air palette; React/Excalidraw are confined to the bundled whiteboard frame. No WebSockets, streaming, shell execution, vector search or provider SDK.
+- **Limits:** 1,000,000 source characters / 20,000 lines / 5,000 passages per import, 2 MB ordinary API payloads (20 MB for bounded scene writes only), 4,000-character questions, 2,000-character UI selections/whiteboard feedback notes. The local prototype migrates schema v1 to v2 for the managed reservation marker and refuses unknown future schema versions; handoffs and conversation groups use additive tables without changing v1 records or schema version. Resource isolation for very large/malicious documents remains out of scope.
 
 See [acceptance evidence](docs/acceptance.md) for commands, observed results, and validation limitations. The repository is [nicolascrop/sillage-axi](https://github.com/nicolascrop/sillage-axi).

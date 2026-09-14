@@ -26,6 +26,7 @@ async function reader(origin, setup = () => {}) {
   setup(window);
   let poll;
   window.setInterval = fn => { poll = fn; };
+  window.eval(readFileSync('public/whiteboards.js', 'utf8'));
   await window.eval(`(async () => { ${readFileSync('public/app.js', 'utf8')} })()`);
   return { dom, window, $: id => window.document.getElementById(id), poll: () => poll() };
 }
@@ -926,4 +927,53 @@ test('a workflow revision received while narrow report is hidden keeps its saved
   assert.match(ui.$('report').textContent, /changed introduction/);
   assert.equal(ui.window.lastScrollDelta, undefined);
   assert.equal(ui.window.lastScrollPosition, undefined);
+});
+
+test('whiteboard channels bind direct frames to exact revisions and reject spoofed messages without stealing report questions', async t => {
+  const app = await service(t, '# Diagrams\n\n```mermaid\nflowchart LR\n A-->B\n```\n\nExact context.');
+  const ui = await reader(app.origin); t.after(() => ui.dom.window.close());
+  const frame = ui.$('report').querySelector('iframe');
+  const diagram = app.store.current().diagrams[0];
+  const doc = app.store.current();
+  const messages = [];
+  frame.contentWindow.postMessage = message => messages.push(message);
+  const dispatch = (data, source = frame.contentWindow) => ui.window.dispatchEvent(new ui.window.MessageEvent('message', { source, data }));
+  assert.equal(frame.getAttribute('sandbox'), 'allow-scripts');
+  assert.equal(frame.tabIndex, -1); assert.equal(frame.inert, true);
+  dispatch({ type: 'sillage-whiteboard:ready' }, ui.window);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(messages.length, 0, 'unregistered windows cannot request source/init');
+  dispatch({ type: 'sillage-whiteboard:ready' });
+  await waitFor(() => messages.some(m => m.type === 'sillage-whiteboard:init'));
+  const init = messages.find(m => m.type === 'sillage-whiteboard:init');
+  assert.equal(init.revisionId, doc.id); assert.equal(init.diagramId, diagram.block_id);
+  assert.equal(init.source, 'flowchart LR\n A-->B');
+  const shape = { id: 'A', type: 'rectangle', x: 0, y: 0, width: 100, height: 40 };
+  const save = { type: 'sillage-whiteboard:save', sourceHash: diagram.source_hash, textMetricsVersion: 1,
+    channelId: 'forged', scene: { elements: [shape] }, baseline: { elements: [shape] }, flushId: 'save' };
+  dispatch(save); await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(app.store.whiteboards.latest(doc.id, diagram.block_id), null);
+  dispatch({ ...save, channelId: init.channelId });
+  await waitFor(() => messages.some(m => m.type === 'sillage-whiteboard:saveResult' && m.ok));
+  dispatch({ type: 'sillage-whiteboard:mounted', channelId: init.channelId });
+  const annotate = ui.$('report').querySelector('.wb-tools button');
+  annotate.click();
+  assert.equal(frame.inert, false); assert.equal(ui.$('bubble').hidden, true);
+  assert.equal(messages.at(-1).type, 'sillage-whiteboard:lock');
+  assert.equal(messages.at(-1).locked, false);
+  const summary = ui.$('report').querySelector('.wb-source summary');
+  summary.click(); assert.equal(ui.$('bubble').hidden, true, 'source disclosure is a native control, not a question click');
+  dispatch({ ...save, type: 'sillage-whiteboard:queueFeedback', channelId: init.channelId, note: 'Explain this annotation.', clientKey: 'whiteboard-ui-feedback' });
+  await waitFor(() => app.store.threads().length === 1);
+  await waitFor(() => ui.$('notice').textContent.startsWith('Whiteboard feedback saved.'));
+  await ui.poll();
+  assert.match(ui.$('messages').textContent, /not scene JSON or pixels/);
+  assert.equal(app.store.threads()[0].revision_id, doc.id);
+  assert.equal(app.store.threads()[0].block_id, diagram.block_id);
+  // Local publication during active editing keeps the old frame and its revision.
+  app.store.importReport({ title: 'New revision', source: '# Diagrams\n\n```mermaid\nflowchart LR\n A-->C\n```' });
+  await ui.poll();
+  assert.equal(ui.$('report').querySelector('iframe'), frame);
+  assert.match(ui.$('notice').textContent, /Finish the whiteboard/);
+  assert.equal(messages.at(-1).type, 'sillage-whiteboard:staleRevision');
 });

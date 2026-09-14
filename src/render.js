@@ -131,6 +131,18 @@ export function renderReport(source, previous = []) {
   return { html, toc, blocks: blocks.map(({ token, ...block }) => block) };
 }
 
+/** Sources come from Markdown tokens, never a browser scene or positional reattachment.
+ * Stored line coordinates also let pre-whiteboard revisions retain their exact IDs. */
+export function mermaidDiagrams(source, blocks) {
+  const tokens = md.parse(source.replace(/\r\n?/g, '\n'), {});
+  return tokens.filter(t => t.type === 'fence' && /^mermaid(?:\s|$)/i.test(t.info.trim())).flatMap(t => {
+    const block = blocks.find(b => b.kind === 'code' && b.start_line === t.map[0] + 1 && b.end_line === t.map[1]);
+    if (!block) return [];
+    const source = t.content.replace(/^[ \t]*\r?\n/, '').trimEnd();
+    return [{ block_id: block.id, source, source_hash: createHash('sha256').update(source).digest('hex') }];
+  });
+}
+
 /** Replies use precisely the report's inert Markdown pipeline, without passage IDs. */
 export function renderMarkdown(source) {
   return safeHtml(md.render(source));

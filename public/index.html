@@ -6,6 +6,7 @@
   <title>Sillage AXI · local report reader</title>
   <link rel="icon" href="/sillage.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
+  <script src="/whiteboards.js" defer></script>
   <script type="module" src="/app.js"></script>
 </head>
 <body>
@@ -28,7 +29,7 @@
   <div class="layout toc-collapsed" id="layout">
     <nav id="toc-panel" class="toc-panel" aria-label="Table of contents" hidden><h2>Contents</h2><ol id="toc"></ol></nav>
     <main id="reader" tabindex="0" aria-label="Report">
-      <div class="report-header"><p class="eyebrow">Saved on this PC</p><h1 id="report-title">Your report will appear here</h1><details class="report-details"><summary>Report details</summary><p id="revision" class="muted"></p></details></div>
+      <div class="report-header"><p class="eyebrow">Saved on this PC</p><h1 id="report-title">Your report will appear here</h1><details class="report-details"><summary>Report details</summary><p id="revision" class="muted"></p></details><details id="whiteboard-history"><summary>Whiteboard history</summary><p>Exact historical revisions, never reattached to changed diagrams. Latest 100 saved diagrams.</p><div id="whiteboard-history-list"></div></details></div>
       <p class="hint">Click a passage or select a quote to ask a question. With a keyboard, focus a passage and press Enter.</p>
       <article id="report" aria-label="Markdown report"><p>Return to the conversation that produced your report and ask to present it with Sillage.</p></article>
     </main>
