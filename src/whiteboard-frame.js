@@ -19,8 +19,7 @@ import "./whiteboard-frame.css";
 import {
   convertExcalidrawSkeletonsAfterFontsLoad,
   createWhiteboardPersistencePayload,
-  findDuplicateElementIds,
-  preserveUniqueElementIds,
+  prepareExcalidrawSkeletons,
   repairSavedSceneTextMetrics,
   sanitizeWhiteboardAppState,
   sceneIsImageFallback,
@@ -350,18 +349,11 @@ async function loadSceneFonts(elements, files) {
 
 async function convertSource(source) {
   if (source.length > 100_000) throw new Error("Diagram exceeds the 100,000-character whiteboard conversion limit; original source is available below.");
-  const { elements: skeletons, files } = await parseMermaidToExcalidraw(source, {
+  const { elements: parsedSkeletons, files } = await parseMermaidToExcalidraw(source, {
     themeVariables: { fontSize: "16px" },
   });
-  const materialize = (input) => {
-    // Preserve Mermaid node/edge identity; suffix only upstream collisions
-    // (parallel edges), reserving all original node IDs before generating any.
-    let elements = convertToExcalidrawElements(input, { regenerateIds: false });
-    if (findDuplicateElementIds(elements).length > 0) {
-      elements = preserveUniqueElementIds(elements);
-    }
-    return elements;
-  };
+  const skeletons = prepareExcalidrawSkeletons(parsedSkeletons);
+  const materialize = (input) => convertToExcalidrawElements(input, { regenerateIds: false });
   const elements = await convertExcalidrawSkeletonsAfterFontsLoad(skeletons, {
     convert: materialize,
     loadFonts: async (fallbackElements) => {

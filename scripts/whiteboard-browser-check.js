@@ -204,7 +204,12 @@ try {
     const record = saved();
     assert.equal(record.baseline.elements.every(e => e.type === 'image'), fallback, `${name} conversion matrix`);
     assert.equal(new Set(record.scene.elements.map(e => e.id)).size, record.scene.elements.length, `${name} unique IDs`);
-    if (name === 'parallel-flow') assert.ok(record.scene.elements.some(e => e.id === 'A'), 'duplicate edges must not randomize node identity');
+    if (name === 'parallel-flow') {
+      const parallelEdges = record.scene.elements.filter(e => e.type === 'arrow');
+      assert.equal(parallelEdges.length, 2, 'parallel edges must both survive materialization');
+      assert.deepEqual(parallelEdges.map(e => [e.startBinding?.elementId, e.endBinding?.elementId]), [['A', 'B'], ['A', 'B']]);
+      assert.ok(record.scene.elements.some(e => e.id === 'A'), 'duplicate edges must not randomize node identity');
+    }
     await evaluate(`() => {document.querySelector('.wb-host').scrollIntoView({block:'center'});return true;}`);
     await shot(`matrix-${name}`);
     results.conversion.push({ name, fallback, types: [...new Set(record.scene.elements.map(e => e.type))], elements: record.scene.elements.length });

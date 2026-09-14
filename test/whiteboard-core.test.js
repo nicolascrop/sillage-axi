@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createWhiteboardPersistencePayload,
   findDuplicateElementIds,
+  prepareExcalidrawSkeletons,
   repairSavedSceneTextMetrics,
   sceneIsImageFallback,
   summarizeSceneEdits,
@@ -182,12 +183,21 @@ test("summarizeSceneEdits bounds output lines and clamps line length", () => {
 });
 
 
-test('duplicate repair preserves even original IDs that resemble generated suffixes', async () => {
-  const { preserveUniqueElementIds } = await import('../src/whiteboard-core.js');
-  const original = [rect('A'), rect('edge'), rect('edge'), rect('edge__duplicate_1')];
-  const repaired = preserveUniqueElementIds(original);
-  assert.deepEqual(repaired.map(e => e.id), ['A', 'edge', 'edge__duplicate_2', 'edge__duplicate_1']);
-  assert.deepEqual(original.map(e => e.id), ['A', 'edge', 'edge', 'edge__duplicate_1']);
+test('preflight preserves parallel edges and their binding targets before materialization', () => {
+  const original = [
+    rect('A'),
+    rect('B'),
+    { id: 'A_B', type: 'arrow', start: { id: 'A' }, end: { id: 'B' } },
+    { id: 'A_B', type: 'arrow', start: { id: 'A' }, end: { id: 'B' } },
+  ];
+  const snapshot = structuredClone(original);
+  const prepared = prepareExcalidrawSkeletons(original);
+  const materialized = new Map(prepared.map((element) => [element.id, element]));
+  const edges = [...materialized.values()].filter((element) => element.type === 'arrow');
+  assert.equal(edges.length, 2);
+  assert.deepEqual(edges.map((element) => element.id), ['A_B', 'A_B__duplicate_1']);
+  assert.deepEqual(edges.map((element) => [element.start.id, element.end.id]), [['A', 'B'], ['A', 'B']]);
+  assert.deepEqual(original, snapshot);
 });
 
 test('font-aware conversion materializes only after font loading, then again with actual metrics', async () => {

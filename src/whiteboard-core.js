@@ -42,21 +42,55 @@ export function findDuplicateElementIds(elements) {
   return [...duplicates];
 }
 
-export function preserveUniqueElementIds(elements) {
-  const reserved = new Set(elements.map(element => element.id));
-  const seen = new Set();
-  return elements.map(element => {
-    const base = element.id;
-    if (seen.has(base)) {
-      let suffix = 1;
-      let id;
-      do { id = `${base}__duplicate_${suffix++}`; } while (reserved.has(id));
-      reserved.add(id);
-      element = { ...element, id };
+function remapReference(reference, ids) {
+  if (!reference || typeof reference !== "object" || typeof reference.id !== "string") return reference;
+  const id = ids.get(reference.id);
+  return id && id !== reference.id ? { ...reference, id } : reference;
+}
+
+function remapSkeletonReferences(element, ids) {
+  const remapped = { ...element };
+  for (const key of ["containerId", "frameId"]) {
+    if (typeof remapped[key] === "string") remapped[key] = ids.get(remapped[key]) || remapped[key];
+  }
+  for (const key of ["start", "end"]) {
+    if (remapped[key] !== undefined) remapped[key] = remapReference(remapped[key], ids);
+  }
+  for (const key of ["startBinding", "endBinding"]) {
+    const binding = remapped[key];
+    if (binding && typeof binding === "object" && typeof binding.elementId === "string") {
+      remapped[key] = { ...binding, elementId: ids.get(binding.elementId) || binding.elementId };
     }
-    seen.add(base);
-    return element;
+  }
+  if (Array.isArray(remapped.boundElements)) {
+    remapped.boundElements = remapped.boundElements.map((reference) => remapReference(reference, ids));
+  }
+  if (Array.isArray(remapped.children)) {
+    remapped.children = remapped.children.map((id) => typeof id === "string" ? ids.get(id) || id : id);
+  }
+  return remapped;
+}
+
+export function prepareExcalidrawSkeletons(elements) {
+  const skeletons = (Array.isArray(elements) ? elements : []).map((element) => ({ ...element }));
+  const reserved = new Set(skeletons.map((element) => String(element?.id || "")).filter(Boolean));
+  const seen = new Set();
+  const canonicalIds = new Map();
+  const prepared = skeletons.map((element) => {
+    if (!element?.id) return element;
+    const base = String(element.id);
+    if (!canonicalIds.has(base)) canonicalIds.set(base, base);
+    if (!seen.has(base)) {
+      seen.add(base);
+      return element;
+    }
+    let suffix = 1;
+    let id;
+    do { id = `${base}__duplicate_${suffix++}`; } while (reserved.has(id));
+    reserved.add(id);
+    return { ...element, id };
   });
+  return prepared.map((element) => remapSkeletonReferences(element, canonicalIds));
 }
 
 // Only the versioned, expansion-only text repair may adjust a saved baseline.
