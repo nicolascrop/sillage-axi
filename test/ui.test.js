@@ -15,7 +15,7 @@ async function waitFor(condition) {
   assert.fail('DOM condition timed out');
 }
 async function reader(origin, setup = () => {}) {
-  const dom = new JSDOM(readFileSync('public/index.html', 'utf8'), { url: origin, runScripts: 'outside-only' });
+  const dom = new JSDOM(await (await fetch(origin)).text(), { url: origin, runScripts: 'outside-only' });
   const { window } = dom;
   window.fetch = (path, init) => fetch(origin + path, init);
   window.AbortSignal = AbortSignal;
@@ -129,7 +129,7 @@ test('continuous chat preserves per-thread drafts, chronology and an uncertain f
   setFollowup(ui, 'A draft about the first quote');
   choose(ui, second.id);
   await waitFor(() => !app.store.conversation(second.id).unread);
-  await waitFor(() => ui.$('new-reply').hidden);
+  await waitFor(() => !ui.$('conversation-choices').textContent.includes('New reply'));
   assert.equal(ui.$('followup').value, '');
   setFollowup(ui, 'Second draft');
   choose(ui, first.id);
@@ -157,13 +157,13 @@ test('continuous chat preserves per-thread drafts, chronology and an uncertain f
   await ui.poll();
 });
 
-test('local drafts close silently with button, Escape, replacement and page departure; Contents collapses independently', async t => {
+test('local drafts close silently with outside click, Escape, replacement and page departure; Contents collapses independently', async t => {
   const app = await service(t);
   const ui = await reader(app.origin);
   t.after(() => ui.dom.window.close());
   const paragraphs = ui.$('report').querySelectorAll('p');
   paragraphs[0].click(); ui.$('question').value = 'Unsent';
-  ui.$('bubble-close').click();
+  ui.window.document.querySelector('.brand strong').click();
   assert.equal(ui.$('bubble').hidden, true);
   paragraphs[0].click(); ui.$('question').value = 'Another unsent';
   ui.window.document.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Escape' }));
@@ -322,7 +322,7 @@ test('closed initial save refreshes threads without stealing the selected conver
   ui.$('question').value = 'Save this question';
   submit(ui, 'question-form');
   await waitFor(() => pending);
-  ui.$('bubble-close').click();
+  ui.window.document.querySelector('.brand strong').click();
   choose(ui, second.id);
   assert.equal(activeConversation(ui), second.id);
   pending.resolve(await normalFetch('/api/questions', pending.init));
@@ -349,7 +349,7 @@ test('closed initial save preserves a newly selected passage and the empty chat 
   ui.$('question').value = 'Save this question';
   submit(ui, 'question-form');
   await waitFor(() => pending);
-  ui.$('bubble-close').click();
+  ui.window.document.querySelector('.brand strong').click();
   paragraphs[1].click();
   assert.equal(ui.$('bubble-quote').textContent, 'Keep this.');
   pending.resolve(await normalFetch('/api/questions', pending.init));
@@ -382,7 +382,7 @@ test('completed initial save closes its bubble after switching conversations', a
   await waitFor(() => pending);
   choose(ui, second.id);
   assert.equal(activeConversation(ui), second.id);
-  assert.equal(ui.$('bubble').hidden, false);
+  assert.equal(ui.$('bubble').hidden, true, 'choosing another conversation is an outside click');
   pending.resolve(await normalFetch('/api/questions', pending.init));
   await waitFor(() => ui.$('conversation-choices').querySelectorAll('button').length === 3 && ui.$('notice').textContent.includes('Question saved'));
   assert.equal(ui.$('bubble').hidden, true);
@@ -410,7 +410,7 @@ test('closed initial save keeps its exact failed payload available for retry', a
   ui.$('question').value = 'Keep this exact question';
   submit(ui, 'question-form');
   await waitFor(() => pending);
-  ui.$('bubble-close').click();
+  ui.window.document.querySelector('.brand strong').click();
   pending.reject(new Error('Disconnected while saving'));
   await waitFor(() => !ui.$('notice-retry').hidden);
   assert.equal(ui.$('bubble').hidden, true);
@@ -453,7 +453,7 @@ test('unchanged polls preserve finder choices, focus and draft without DOM mutat
   await assertQuietPoll();
   assert.equal(ui.$('question').value, 'Unsent draft');
   assert.equal(ui.window.document.activeElement, ui.$('question'));
-  ui.$('bubble-close').click();
+  ui.window.document.querySelector('.brand strong').click();
   app.store.question(questionInput(app.store.current(), { quote: 'quoted' }));
   await ui.poll();
   const choice = ui.$('conversation-choices').firstElementChild;
@@ -564,7 +564,7 @@ test('narrow question and answer saves leave report reading in place until expli
   assert.equal(ui.$('threads-panel').hidden, false);
   assert.equal(ui.window.document.activeElement.dataset.messageId, answer.id);
   assert.equal(ui.$('latest-reply').hidden, true);
-  await waitFor(() => ui.$('new-reply').hidden);
+  await waitFor(() => !ui.$('conversation-choices').textContent.includes('New reply'));
   app.relay.disconnect(session);
 });
 
@@ -877,13 +877,13 @@ test('icon actions keep accessible names and feedback throughout uncertain-save 
   assert.equal(send.querySelector('svg'), icon);
 });
 
-test('New reply is durable, explicit, and does not acknowledge a late unseen answer racing navigation', async t => {
+test('finder unread state is durable, explicit, and does not acknowledge a late unseen answer racing navigation', async t => {
   const app = await service(t);
   const thread = app.store.question(questionInput(app.store.current(), { quote: 'quoted' }));
   await runFakeAgent(app.origin);
   const ui = await reader(app.origin, window => { window.innerWidth = 390; });
   t.after(() => ui.dom.window.close());
-  assert.equal(ui.$('new-reply').hidden, false);
+  assert.match(ui.$('conversation-choices').textContent, /New reply/);
   ui.$('show-chat').click();
   await ui.poll();
   assert.equal(app.store.conversation(thread.id).unread, 1, 'opening the pane alone is not an acknowledgement');
@@ -898,20 +898,20 @@ test('New reply is durable, explicit, and does not acknowledge a late unseen ans
     }
     return normalFetch(path, init);
   };
-  ui.$('new-reply').click();
+  choose(ui, thread.id);
   await waitFor(() => ui.$('messages').querySelectorAll('.message').length === 4);
   assert.equal(app.store.thread(thread.id).unread, 0);
   assert.equal(app.store.thread(followup.messages.at(-1).thread_id).unread, 1);
-  assert.equal(ui.$('new-reply').hidden, false);
+  assert.match(ui.$('conversation-choices').textContent, /New reply/);
   assert.deepEqual(acknowledgements, [`/api/threads/${thread.id}`]);
   ui.window.fetch = normalFetch;
-  ui.$('new-reply').click();
-  await waitFor(() => ui.$('new-reply').hidden);
+  choose(ui, thread.id);
+  await waitFor(() => !ui.$('conversation-choices').textContent.includes('New reply'));
   assert.equal(app.store.conversation(thread.id).unread, 0);
-  await waitFor(() => ui.window.document.activeElement === ui.$('messages').lastElementChild);
+  await waitFor(() => ui.window.document.activeElement === ui.$('conversation-toggle'));
   const reloaded = await reader(app.origin);
   t.after(() => reloaded.dom.window.close());
-  assert.equal(reloaded.$('new-reply').hidden, true);
+  assert.doesNotMatch(reloaded.$('conversation-choices').textContent, /New reply/);
 });
 
 test('a workflow revision received while narrow report is hidden keeps its saved reading position', async t => {
@@ -1063,4 +1063,236 @@ test('both composers share keyboard send and accessible saving and retry states'
   ui.$('report').querySelector('p').click();
   assert.equal(send.getAttribute('aria-label'), 'Send message');
   assert.equal(form.getAttribute('aria-busy'), 'false');
+});
+
+test('minimal chrome exposes icon-only Contents before the mark and only a narrow Report / Conversation selector', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const toggle = ui.$('toc-toggle');
+  assert.equal(toggle.tagName, 'BUTTON');
+  assert.equal(toggle.textContent, '');
+  assert.equal(toggle.getAttribute('aria-label'), 'Table of contents');
+  assert.equal(toggle.getAttribute('aria-controls'), 'toc-panel');
+  assert.equal(toggle.nextElementSibling.tagName, 'IMG');
+  assert.equal(toggle.nextElementSibling.getAttribute('src'), '/sillage.svg');
+  assert.equal(toggle.querySelector('svg').getAttribute('aria-hidden'), 'true');
+  assert.equal(ui.$('new-reply'), null);
+  assert.equal(ui.$('bubble-close'), null);
+  assert.equal(ui.window.document.querySelector('.chat-heading h3').textContent, 'Conversation');
+  assert.equal(ui.window.document.querySelector('.site-header #show-chat, .site-header #show-report'), null);
+  assert.equal(ui.$('workspace-switcher').hidden, true);
+  toggle.click();
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(toggle.title, 'Hide table of contents');
+  ui.$('toc').querySelector('a').focus();
+  ui.window.document.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Escape' }));
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  assert.equal(ui.window.document.activeElement, toggle);
+  assert.equal(toggle.title, 'Show table of contents');
+  ui.window.innerWidth = 700; ui.window.dispatchEvent(new ui.window.Event('resize'));
+  assert.equal(ui.$('workspace-switcher').hidden, false);
+  assert.deepEqual([...ui.$('workspace-switcher').querySelectorAll('a')].map(a => a.textContent), ['Report', 'Conversation']);
+  ui.$('show-chat').click();
+  assert.equal(ui.$('show-chat').getAttribute('aria-current'), 'page');
+  assert.equal(ui.$('reader').hidden, true);
+  ui.window.innerWidth = 701; ui.window.dispatchEvent(new ui.window.Event('resize'));
+  assert.equal(ui.$('workspace-switcher').hidden, true);
+  assert.equal(ui.$('reader').hidden, false);
+  assert.equal(ui.$('threads-panel').hidden, false);
+});
+
+test('question light dismissal preserves inside clicks, outside focus, replacement and exact selected quotes', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const paragraph = ui.$('report').querySelector('p');
+  paragraph.click();
+  ui.$('question').value = 'Draft';
+  ui.$('bubble-quote').click();
+  assert.equal(ui.$('bubble').hidden, false);
+  assert.equal(ui.$('question').value, 'Draft');
+  ui.$('toc-toggle').focus(); ui.$('toc-toggle').click();
+  assert.equal(ui.$('bubble').hidden, true);
+  assert.equal(ui.window.document.activeElement, ui.$('toc-toggle'), 'outside focus is never pulled back into the report');
+  const range = ui.window.document.createRange();
+  range.selectNodeContents(paragraph.querySelector('strong'));
+  ui.window.getSelection().removeAllRanges();
+  ui.window.getSelection().addRange(range);
+  paragraph.dispatchEvent(new ui.window.MouseEvent('mouseup', { bubbles: true }));
+  paragraph.click();
+  assert.equal(ui.$('bubble').hidden, false, 'selection-completing click is not an outside dismissal');
+  assert.equal(ui.$('bubble-quote').textContent, 'quoted');
+  ui.window.document.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Escape' }));
+  assert.equal(ui.window.document.activeElement, paragraph);
+  assert.equal(app.store.threads().length, 0);
+});
+
+test('review menu uses keyboard focus, Escape, Tab, focus departure and outside dismissal without lifecycle effects', async t => {
+  const app = await service(t);
+  const session = app.relay.connect({ worker: 'menu-fixture' });
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const toggle = ui.$('review-menu-toggle');
+  const key = (target, value) => target.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true }));
+  assert.equal(toggle.getAttribute('aria-label'), 'Review options');
+  assert.equal(toggle.getAttribute('aria-haspopup'), 'menu');
+  assert.equal(ui.$('review-menu').getAttribute('role'), 'menu');
+  assert.equal(ui.$('end-session').getAttribute('role'), 'menuitem');
+  toggle.focus(); key(toggle, 'ArrowDown');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(ui.window.document.activeElement, ui.$('end-session'));
+  key(ui.$('end-session'), 'Home'); key(ui.$('end-session'), 'ArrowUp');
+  assert.equal(ui.window.document.activeElement, ui.$('end-session'));
+  key(ui.$('end-session'), 'Escape');
+  assert.equal(ui.$('review-menu').hidden, true);
+  assert.equal(ui.window.document.activeElement, toggle);
+  toggle.click(); key(ui.$('end-session'), 'Tab');
+  assert.equal(ui.$('review-menu').hidden, true);
+  toggle.click(); ui.$('reader').focus();
+  assert.equal(ui.$('review-menu').hidden, true);
+  toggle.click(); ui.window.document.querySelector('.brand strong').click();
+  assert.equal(ui.$('review-menu').hidden, true);
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  ui.$('toc-toggle').click(); await ui.poll();
+  ui.window.dispatchEvent(new ui.window.Event('beforeunload'));
+  assert.equal(app.relay.session.id, session.session_id, 'only explicit End session disconnects');
+});
+
+test('End session closes only this review, stops polling, preserves data and never disconnects a replacement on uncertain retry', async t => {
+  const app = await service(t);
+  const session = app.relay.connect({ worker: 'ending-fixture' });
+  const saved = app.store.question(questionInput(app.store.current(), { quote: 'quoted' }));
+  app.relay.reserve(session);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const normalFetch = ui.window.fetch;
+  let lost = false, calls = 0;
+  ui.window.fetch = async (path, init) => {
+    calls++;
+    const response = await normalFetch(path, init);
+    if (path === '/review/end' && !lost) { lost = true; throw new Error('Lost end acknowledgement'); }
+    return response;
+  };
+  ui.$('review-menu-toggle').click(); ui.$('end-session').click();
+  await waitFor(() => ui.$('notice').textContent.includes('Lost end acknowledgement'));
+  assert.equal(ui.$('review-ended').hidden, true);
+  assert.equal(ui.$('layout').inert, false);
+  assert.equal(app.relay.status().state, 'unavailable');
+  assert.equal(app.store.thread(saved.id).request_status, 'failed');
+  const replacement = app.relay.connect({ worker: 'replacement-fixture' });
+  ui.$('review-menu-toggle').click(); ui.$('end-session').click();
+  await waitFor(() => !ui.$('review-ended').hidden);
+  assert.equal(ui.window.document.activeElement, ui.$('review-ended-title'));
+  assert.equal(ui.$('layout').hidden, true);
+  assert.equal(ui.$('toc-toggle').hidden, true);
+  assert.equal(ui.$('review-actions').hidden, true);
+  assert.equal(ui.$('workspace-switcher').hidden, true);
+  assert.equal(app.relay.session.id, replacement.session_id);
+  const before = calls;
+  await ui.poll();
+  ui.window.innerWidth = 390; ui.window.dispatchEvent(new ui.window.Event('resize'));
+  ui.window.location.hash = '#threads-panel';
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(calls, before, 'closed review neither polls nor performs hash navigation');
+  assert.equal(ui.$('workspace-switcher').hidden, true);
+  assert.equal(app.server.listening, true);
+  const reopened = await reader(app.origin);
+  t.after(() => reopened.dom.window.close());
+  assert.equal(reopened.$('review-ended').hidden, true);
+  assert.equal(reopened.$('layout').hidden, false);
+  assert.match(reopened.$('messages').textContent, /stopped before answering/);
+  assert.equal(app.store.thread(saved.id).closed, 0);
+  assert.equal(app.store.current().id, saved.revision_id);
+});
+
+test('End session waits for uncertain messages and whiteboard work; absent respondent is a safe no-op', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const normalFetch = ui.window.fetch;
+  let rejectSave;
+  ui.window.fetch = (path, init) => path === '/api/questions' ? new Promise((resolve, reject) => { rejectSave = reject; }) : normalFetch(path, init);
+  ui.$('report').querySelector('p').click(); ui.$('question').value = 'Keep this pending question'; submit(ui, 'question-form');
+  ui.$('review-menu-toggle').click(); ui.$('end-session').click();
+  assert.match(ui.$('notice').textContent, /Finish saving/);
+  rejectSave(new Error('Disconnected while saving'));
+  await waitFor(() => !ui.$('notice-retry').hidden);
+  ui.$('review-menu-toggle').click(); ui.$('end-session').click();
+  assert.match(ui.$('notice').textContent, /retry pending messages/);
+  assert.equal(ui.$('layout').hidden, false);
+  ui.window.fetch = normalFetch; ui.$('notice-retry').click();
+  await waitFor(() => ui.$('notice').textContent === 'Question saved.');
+  ui.$('review-menu-toggle').click(); ui.$('end-session').click();
+  await waitFor(() => !ui.$('review-ended').hidden);
+  assert.equal(app.store.threads().length, 1);
+  assert.equal(app.store.threads()[0].request_status, 'waiting', 'unclaimed questions stay queued');
+});
+
+test('End session refuses to hide active or unsaved whiteboard edits', async t => {
+  const app = await service(t, '# Diagram\n\n```mermaid\nflowchart LR\n A-->B\n```');
+  const session = app.relay.connect({ worker: 'whiteboard-end-fixture' });
+  const ui = await reader(app.origin); t.after(() => ui.dom.window.close());
+  const frame = ui.$('report').querySelector('iframe');
+  const messages = [];
+  frame.contentWindow.postMessage = message => messages.push(message);
+  const dispatch = data => ui.window.dispatchEvent(new ui.window.MessageEvent('message', { source: frame.contentWindow, data }));
+  dispatch({ type: 'sillage-whiteboard:ready' });
+  await waitFor(() => messages.some(m => m.type === 'sillage-whiteboard:init'));
+  const channelId = messages.find(m => m.type === 'sillage-whiteboard:init').channelId;
+  dispatch({ type: 'sillage-whiteboard:mounted', channelId });
+  ui.$('report').querySelector('.wb-tools button').click();
+  ui.$('review-menu-toggle').click(); ui.$('end-session').click();
+  await waitFor(() => ui.$('notice').textContent.includes('Finish whiteboard editing'));
+  assert.equal(frame.isConnected, true);
+  assert.equal(frame.inert, false);
+  assert.equal(app.relay.session.id, session.session_id);
+  ui.$('report').querySelectorAll('.wb-tools button')[1].click();
+  ui.$('review-menu-toggle').click(); ui.$('end-session').click();
+  await waitFor(() => messages.some(m => m.type === 'sillage-whiteboard:flush'));
+  const flushId = messages.findLast(m => m.type === 'sillage-whiteboard:flush').flushId;
+  dispatch({ type: 'sillage-whiteboard:flushComplete', channelId, flushId, ok: false });
+  await waitFor(() => ui.$('notice').textContent.includes('Whiteboard could not save'));
+  assert.equal(frame.isConnected, true);
+  assert.equal(app.relay.session.id, session.session_id);
+  ui.$('review-menu-toggle').click(); ui.$('end-session').click();
+  await waitFor(() => messages.findLast(m => m.type === 'sillage-whiteboard:flush').flushId !== flushId);
+  dispatch({ type: 'sillage-whiteboard:flushComplete', channelId, flushId: messages.findLast(m => m.type === 'sillage-whiteboard:flush').flushId, ok: true });
+  await waitFor(() => !ui.$('review-ended').hidden);
+  assert.equal(frame.isConnected, false);
+  assert.equal(app.relay.status().state, 'unavailable');
+});
+
+test('End session waits for an in-flight whiteboard revision replacement and refuses a stale displayed revision', async t => {
+  const source = '# Diagram\n\n```mermaid\nflowchart LR\n A-->B\n```';
+  const app = await service(t, source);
+  const session = app.relay.connect({ worker: 'revision-end-fixture' });
+  const ui = await reader(app.origin); t.after(() => ui.dom.window.close());
+  const frame = ui.$('report').querySelector('iframe');
+  const messages = [];
+  frame.contentWindow.postMessage = message => messages.push(message);
+  const dispatch = (source, data) => ui.window.dispatchEvent(new ui.window.MessageEvent('message', { source, data }));
+  dispatch(frame.contentWindow, { type: 'sillage-whiteboard:ready' });
+  await waitFor(() => messages.some(m => m.type === 'sillage-whiteboard:init'));
+  const channelId = messages.find(m => m.type === 'sillage-whiteboard:init').channelId;
+  dispatch(frame.contentWindow, { type: 'sillage-whiteboard:mounted', channelId });
+  app.store.importReport({ title: 'Updated diagram review', source: source + '\n\nAn added note.' });
+  const refreshing = ui.poll();
+  await waitFor(() => messages.some(m => m.type === 'sillage-whiteboard:flush'));
+  ui.$('review-menu-toggle').click(); ui.$('end-session').click();
+  assert.equal(ui.$('layout').inert, true);
+  const flushId = messages.find(m => m.type === 'sillage-whiteboard:flush').flushId;
+  dispatch(frame.contentWindow, { type: 'sillage-whiteboard:flushComplete', channelId, flushId, ok: true });
+  await refreshing;
+  await waitFor(() => ui.$('notice').textContent.includes('The report changed'));
+  assert.equal(ui.$('layout').inert, false);
+  assert.equal(app.relay.session.id, session.session_id);
+  assert.match(ui.$('report').textContent, /An added note/);
+  const replacement = ui.$('report').querySelector('iframe');
+  assert.notEqual(replacement, frame);
+  const nextMessages = [];
+  replacement.contentWindow.postMessage = message => nextMessages.push(message);
+  dispatch(replacement.contentWindow, { type: 'sillage-whiteboard:ready' });
+  await waitFor(() => nextMessages.some(m => m.type === 'sillage-whiteboard:init'));
+  assert.equal(nextMessages.find(m => m.type === 'sillage-whiteboard:init').revisionId, app.store.revisionId(), 'replacement remains registered after end refusal');
 });

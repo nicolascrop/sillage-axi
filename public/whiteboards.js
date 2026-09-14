@@ -193,6 +193,16 @@ window.SillageWhiteboards = class {
     for (const e of inline) { clearTimeout(e.bootTimer); this.entries.delete(e); }
     return true;
   }
+  async beforeEnd() {
+    const pending = () => [...this.entries].some(e => e.editing || this.expanded === e || e.busy || e.failed || e.feedbackBusy || e.feedbackPending);
+    if (pending()) throw new Error('Finish whiteboard editing and retry pending saves or feedback before ending the session.');
+    await Promise.all([...this.entries].map(e => this.flush(e)));
+    if (pending()) throw new Error('Whiteboard work is still pending. Finish or retry it before ending the session.');
+  }
+  dispose() {
+    for (const e of this.entries) { clearTimeout(e.bootTimer); e.frame.remove(); }
+    this.entries.clear();
+  }
   enlarge(e) {
     if (this.expanded) return;
     this.expanded = e;

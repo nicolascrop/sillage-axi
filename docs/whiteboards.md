@@ -16,13 +16,15 @@ arbitrary JSON scenes are not imported as report code.
 - **Enlarge** / **Fullscreen** expands the *same* iframe above the reader. There is
   no second editor racing its autosaves. Background controls become inert. Close
   flushes the scene before returning focus; a failed flush leaves the editor open
-  with retry guidance. Report/Chat and collapsed Contents remain unchanged.
+  with retry guidance. Report/Conversation and collapsed Contents remain available.
 - Scenes autosave locally after an 800 ms debounce. The visible **Saved locally**
   indicator acknowledges SQLite, not an optimistic browser-only save. Keep the tab
   open after an error; **Retry save / reconnect** retains the exact failed operation
   before saving newer edits. The browser warns on departure while editing or with
   pending writes. Forced termination before acknowledgement can still lose unsaved
-  edits; browser drafts are not a second durable store.
+  edits; browser drafts are not a second durable store. **End session** refuses
+  pending editing, saves or feedback, then flushes idle frames before closing the
+  review; see [ending a review](../README.md#ending-a-review).
 - **Whiteboard history**, above the report, opens exact historical diagram revisions
   for viewing or annotation. It lists the latest snapshot for the most recent 100
   saved revision/diagram pairs. Older immutable snapshots remain in SQLite and are

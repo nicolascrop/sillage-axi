@@ -635,3 +635,67 @@ restarted or used as a test fixture. No runtime provider, API/schema, historical
 alias, or loopback boundary changed. Physical touch/virtual keyboards, screen-reader
 sessions, forced colors and comprehensive accessibility certification are not
 claimed. Remote publication/CI are separate no-mistakes gates, not these local tests.
+
+## Consolidated final-review controls — 2026-09-14
+
+Candidate on isolated `fm/sillage-final-review-recovery`, rebuilt from the clean
+main base without integrating the abandoned Contents branch. Baseline Chrome
+inspection reproduced the labeled right-hand Contents control, redundant header
+Chat link, h2 Chat heading and question close button. The current interface uses
+an icon-only left-hand Contents toggle, compact h3 Conversation, narrow-only
+Report / Conversation selector, outside-dismissed question popover and a discrete
+Review options menu. This supersedes older chrome descriptions above.
+
+```sh
+node --test test/ui.test.js test/review-end.test.js
+npm test
+npm run check
+git diff --check
+CHROME_DEVTOOLS_AXI_BROWSER_URL=http://127.0.0.1:9223 \
+CHROME_DEVTOOLS_AXI_SESSION=sillage-final-review-recovery npm run test:browser
+```
+
+- Node **24.18.1**: **134 tests passed**, including **42 focused reader/transport
+  tests**. Tests execute rendered reader HTML, actual UI events, loopback HTTP,
+  SQLite-backed history and the running JSONL bridge, not source-text checks.
+  Syntax, generated-skill freshness and whitespace checks also passed.
+- Contents retains collapsed arrival, no persisted preference, native button
+  activation, named expanded state, visible focus and a 44px target before the
+  brand mark. Escape, heading navigation, pane switching, reading positions,
+  drafts, saved history, exact revision reconciliation and unread acknowledgement
+  races remain covered. Unread replies now live in the conversation finder, not
+  a duplicate header action.
+- Menu tests cover arrow keys, Escape, Tab, outside clicks and focus departure.
+  Question tests retain inside clicks, exact selection across inline formatting,
+  replacement drafts, outside focus and uncertain-save retries without a close
+  button. Only explicit End session invokes the new reader-only action.
+- End tests verify active/absent respondents, natural JSONL detachment, preserved
+  queued questions and saved history, honest failure of an interrupted managed
+  reply, unchanged v1 state/disconnect payloads, and a still-serving service.
+  Lost end acknowledgements replay without disconnecting a replacement worker;
+  stale revisions and retired page keys refuse. Same-origin, opaque-origin,
+  rebinding, form/custom-header and invalid-input refusals are exercised.
+- Closing refuses pending message/whiteboard work. Controlled frame-channel tests
+  exercise failed/successful flush and an end racing a live revision replacement:
+  the original revision guard refuses and the replacement editor stays registered.
+  The successful closed view stops polling, removes hidden controls from keyboard
+  access, focuses its heading and can reopen the saved report without attachment.
+- Existing **Chrome 153** passed at **1440×1000, 1280×720, 800×900, 390×844,
+  320×844, 844×390 and 320×480** through `chrome-devtools-axi`. Native Enter,
+  Space, arrows, Tab and Escape exercise the two icon controls; actual pointer
+  clicks dismiss menus/questions. Geometry checks confirm icon placement, target
+  size, visible expanded/focus state, contained menus, the narrow-only selector,
+  no global overflow, independent scrolling, short-window composer reachability,
+  continuous replies, source navigation and live revisions. Native menu activation
+  ends the review; reopening retains data while the fixture service remains alive.
+
+Final screenshots were inspected under `.data/test/chat-browser-3375413/`, including
+wide/narrow/short controls, questions, conversations and the closed review. Console
+was empty; the retained post-reopen request list contained only same-origin
+loopback URLs. The matrix's synthetic question IDs include both width and height,
+so its two 320px cases cannot accidentally reuse a prior respondent event.
+All fixtures/evidence remain gitignored; no Delta data or shared reader service was
+used. There is no model-inference, physical-touch/virtual-keyboard, screen-reader,
+forced-colors or cross-browser certification claim. Whiteboard end races use
+controlled DOM frame channels; this pass does not expand the prior native editor
+conversion evidence. Remote publication/CI is the separate no-mistakes gate.
