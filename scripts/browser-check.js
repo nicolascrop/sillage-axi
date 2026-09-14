@@ -82,6 +82,7 @@ const assertCaretComposer = style => {
   assert.equal(style.hint, 'Ctrl / ⌘ + Enter to send');
 };
 const geometry = [];
+const viewports = [[1440, 1000], [1280, 720], [901, 844], [900, 844], [701, 844], [700, 844], [390, 844], [320, 844], [844, 390]];
 try {
   send({ type: 'ready', worker: 'layout-test-fixture-not-inference', presentation: { title: 'Orchard review', source, operation_key: 'browser-presentation', expected_revision_id: null, handoff } });
   await waitFor(() => events.some(e => e.type === 'connected'));
@@ -95,7 +96,7 @@ try {
   page = pages.find(p => p.url.replace(/\/$/, '') === origin)?.id;
   assert.ok(page, 'the fixture must have its own explicitly selected page');
   await c('selectpage', String(page));
-  for (const [width, height] of [[1440, 1000], [1280, 720], [390, 844], [320, 844], [844, 390]]) {
+  for (const [width, height] of viewports) {
     await c('emulate', '--viewport', `${width}x${height}x1`);
     await c('open', origin);
     const initial = await evaluate(`() => ({collapsed:document.getElementById('toc-panel').hidden, empty:document.getElementById('chat-empty').textContent,finderHidden:document.getElementById('conversation-list').hidden,select:!!document.querySelector('#threads-panel select'),actions:!!document.getElementById('conversation-actions'), titleHidden:document.getElementById('report-title').hidden, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth})`);
@@ -293,7 +294,7 @@ try {
   writeFileSync(`${evidence}/geometry.json`, JSON.stringify(geometry, null, 2));
   writeFileSync(`${evidence}/console.txt`, await c('console'));
   writeFileSync(`${evidence}/network.txt`, await c('network'));
-  writeFileSync(`${evidence}/result.json`, JSON.stringify({ result: 'passed', viewports: ['1440x1000', '1280x720', '390x844', '320x844', '844x390'], handoffEvents: events.map(e => e.type), source }, null, 2));
+  writeFileSync(`${evidence}/result.json`, JSON.stringify({ result: 'passed', viewports: viewports.map(([width, height]) => `${width}x${height}`), handoffEvents: events.map(e => e.type), source }, null, 2));
   console.log(`Browser layout regressions passed. Evidence: ${evidence}`);
 } finally {
   input.end();

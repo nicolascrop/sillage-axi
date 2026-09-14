@@ -638,7 +638,9 @@ claimed. Remote publication/CI are separate no-mistakes gates, not these local t
 
 ## Compact Contents disclosure — 2026-09-14
 
-- `npm test`: **125 passing tests**; `npm run check` and `git diff --check` pass.
+- `npm test`: Node's test runner reported **tests 125, pass 125, fail 0**; `npm run check`
+  and `git diff --check` pass. The count includes generated/parameterized cases,
+  rather than only top-level test declarations.
   The Contents DOM regression exercises stable labelling, synchronized expanded/
   hidden state, polling, unchanged report nodes, Escape focus return and heading
   navigation across both responsive breakpoints. It failed on the original UI's
