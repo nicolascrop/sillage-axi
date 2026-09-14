@@ -483,12 +483,14 @@ Chrome **153**, via an isolated `chrome-devtools-axi` session:
   report/chat boundaries when wide. At 1440px the boundary is **x=1008** and the
   chat extends to **x=1440**, from **y=113** to **y=1000**. Report/chat scroll
   independence is checked in both directions; native PageDown scrolls only chat.
-- The same browser flow covers report-first save confirmation, narrow pane/scroll
-  retention, visible 44px send icons with accessible names, actual Ctrl+Enter
-  submission, safe original citations, expanded-context containment, retained
-  disclosures/focus across replies, and queued/draft/failed/reloaded history via
-  the real author-owned JSONL handoff. Short-window question bubbles scroll to
-  their action; short-window chat scrolls to its composer with no page movement.
+- The same browser flow covered report-first save confirmation, narrow pane/scroll
+  retention, the then-current visible 44px send icons with accessible names,
+  actual Ctrl+Enter submission, safe original citations, expanded-context
+  containment, retained disclosures/focus across replies, and
+  queued/draft/failed/reloaded history via the real author-owned JSONL handoff.
+  The unified-composer follow-up below records the current 32px send target.
+  Short-window question bubbles scroll to their action; short-window chat
+  scrolls to its composer with no page movement.
   Visible and hidden report revisions retain safe/approximate positions without
   moving chat. Final browser console was empty; recorded requests were loopback.
 - Screenshots and geometry were inspected in
@@ -582,3 +584,54 @@ virtual keyboards, other browsers, font coverage for every glyph and model
 understanding remain unverified. Browser validation is opt-in, not part of offline
 CI. No publication, remote CI or merge is claimed by this local candidate evidence;
 delivery follows the separate no-mistakes gate.
+## Unified question composers and single conversation finder — 2026-09-14
+
+Candidate on isolated `fm/sillage-delta-live-presentation`, based on `10e9f87`.
+The review explicitly requested **caret-only textarea focus**, with no replacement
+border or halo. This applies to both the initial-question popover and the chat
+follow-up, not to buttons, report passages or navigation focus indicators.
+
+```sh
+node --test test/ui.test.js
+npm test
+npm run check
+git diff --check
+CHROME_DEVTOOLS_AXI_BROWSER_URL=http://127.0.0.1:9223 \
+CHROME_DEVTOOLS_AXI_SESSION=your-verified-session npm run test:browser
+```
+
+- **98 tests passed**, including **31 executable reader DOM tests** against real
+  loopback HTTP. The new finder/initial-composer regressions failed before the
+  change: duplicate select/Actions controls remained, and initial questions lacked
+  the shared accessible send state. They pass afterward. Keyboard shortcuts now
+  work within either form, including a focused retry button when the exact saved
+  payload locks its textarea; plain textarea Enter and IME composition do not send.
+- The single **Find a conversation** disclosure occupies the right side of the Chat
+  header. Full questions, passage previews and the current choice remain available;
+  selecting returns keyboard focus to the finder. Escape dismisses it. Idle polls
+  preserve its choices/focus. A regression opens a historically closed conversation
+  and verifies unchanged messages/context/closed status: removing reader closure
+  controls does not remove or mutate the existing CLI/API storage capability.
+- Initial and follow-up forms share typography, spacing, dark surfaces, a **16px
+  send icon in a transparent 32px target**, accessible name/title, required input,
+  Ctrl/⌘+Enter, saving/disabled/retry states, and exact-payload retry semantics.
+  Source snapshots, original citations, unread race handling and independent
+  report/chat scrolling remain covered by the existing behavioral suites.
+- Real Chrome layout checks passed at **1440×1000, 1280×720, 390×844, 320×844 and
+  844×390**. Added assertions inspect *computed styles and actual geometry*, not
+  CSS source strings: caret color, absent textarea outline and textarea/form borders/halos,
+  identical composer font/spacing/colors, small transparent send targets, and
+  unclipped finder placement. Native Enter/Tab/Enter operates the header finder;
+  native Ctrl+Enter sends both initial and follow-up questions. The first parity
+  check exposed inherited 21.6px versus 20.4px line-height; shared composer font
+  sizing fixes it. Screenshots confirm the restrained treatment at wide/narrow
+  sizes, while the full existing geometry/history/handoff regression also passes.
+
+Fixtures are synthetic and use disposable `.data/test/` databases; browser control
+uses only `chrome-devtools-axi` with an explicitly selected existing local Chrome.
+No reader report/database or screenshots are committed. The captain closed the
+separate live Delta presentation before this implementation validation; it was not
+restarted or used as a test fixture. No runtime provider, API/schema, historical
+alias, or loopback boundary changed. Physical touch/virtual keyboards, screen-reader
+sessions, forced colors and comprehensive accessibility certification are not
+claimed. Remote publication/CI are separate no-mistakes gates, not these local tests.
