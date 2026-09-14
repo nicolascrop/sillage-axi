@@ -40,8 +40,13 @@ function submit(ui, id) {
   ui.$(id).dispatchEvent(new ui.window.Event('submit', { bubbles: true, cancelable: true }));
 }
 function choose(ui, id) {
-  ui.$('thread-select').value = id;
-  ui.$('thread-select').dispatchEvent(new ui.window.Event('change'));
+  ui.$('conversation-list').open = true;
+  const choice = [...ui.$('conversation-choices').querySelectorAll('button')].find(button => button.dataset.threadId === id);
+  assert.ok(choice);
+  choice.click();
+}
+function activeConversation(ui) {
+  return ui.$('conversation-choices').querySelector('[aria-current=true]')?.dataset.threadId || '';
 }
 function setFollowup(ui, text) {
   ui.$('followup').value = text;
@@ -97,7 +102,7 @@ test('reader receives workflow imports; selected quote opens a draft, saved chat
   assert.equal(ui.$('messages').querySelectorAll('[data-block-id]').length, 0, 'reply headings cannot impersonate report anchors');
   ui.dom.window.close(); ui = await reader(app.origin);
   assert.equal(ui.$('bubble').hidden, true);
-  assert.equal(ui.$('thread-select').options.length, 1);
+  assert.equal(ui.$('conversation-choices').querySelectorAll('button').length, 1);
   assert.match(ui.$('messages').textContent, /Use local context/);
   assert.equal(ui.window.lastScrolled, undefined, 'restoring/selecting chat never scrolls the report silently');
   ui.$('go-source').click();
@@ -115,11 +120,8 @@ test('continuous chat preserves per-thread drafts, chronology and an uncertain f
   const ui = await reader(app.origin);
   t.after(() => ui.dom.window.close());
   assert.equal(ui.$('threads-panel').hidden, false);
-  assert.equal(ui.$('thread-select').options.length, 2);
-  for (const option of ui.$('thread-select').options) {
-    assert.ok(option.textContent.length <= 80);
-    assert.doesNotMatch(option.textContent, /\n/);
-  }
+  assert.equal(ui.$('conversation-choices').querySelectorAll('button').length, 2);
+  assert.equal(ui.$('conversation-choices').querySelector('button strong').textContent, second.messages[0].body);
   choose(ui, first.id);
   await waitFor(() => !app.store.conversation(first.id).unread);
   await waitFor(() => ![...ui.$('conversation-choices').querySelectorAll('button')].find(b => b.dataset.threadId === first.id).textContent.includes('New reply'));
@@ -148,7 +150,7 @@ test('continuous chat preserves per-thread drafts, chronology and an uncertain f
   await runFakeAgent(app.origin); await ui.poll();
   assert.equal(ui.$('messages').querySelectorAll('.message').length, 4);
   assert.match(ui.$('messages').textContent, /Demo adapter · not AI/);
-  assert.equal(ui.$('thread-select').options.length, 2, 'follow-ups do not create another dropdown entry');
+  assert.equal(ui.$('conversation-choices').querySelectorAll('button').length, 2, 'follow-ups do not create another finder entry');
   choose(ui, second.id);
   assert.equal(ui.$('followup').value, 'Second draft');
   await ui.poll();
@@ -235,9 +237,10 @@ test('live revisions keep safe reading anchors, old drafts and chat provenance w
   const thread = app.store.threads()[0];
   assert.equal(thread.revision_id, first.id);
   await runFakeAgent(app.origin); await ui.poll();
-  ui.$('close-thread').click();
-  await waitFor(() => ui.$('close-thread').textContent === 'Reopen conversation');
-  assert.equal(ui.$('thread-select').options.length, 1);
+  app.store.updateConversation(thread.id, { closed: true });
+  await ui.poll();
+  assert.match(ui.$('conversation-state').textContent, /closed/);
+  assert.equal(ui.$('conversation-choices').querySelectorAll('button').length, 1);
   assert.match(ui.$('conversation-state').textContent, /passage to review/);
   app.store.importReport({ title: 'Rapport', source: first.source }); await ui.poll();
   assert.equal(app.store.thread(thread.id).anchor_status, 'needs_review');
@@ -293,7 +296,7 @@ test('uncertain initial save reuses payload and client key without duplicating i
   assert.equal(app.store.threads().length, 1);
   submit(ui, 'question-form');
   await waitFor(() => ui.$('chat-status').textContent.includes('waiting'));
-  assert.equal(ui.$('thread-select').options.length, 1);
+  assert.equal(ui.$('conversation-choices').querySelectorAll('button').length, 1);
   assert.equal(app.store.threads().length, 1);
 });
 
@@ -320,10 +323,10 @@ test('closed initial save refreshes threads without stealing the selected conver
   await waitFor(() => pending);
   ui.$('bubble-close').click();
   choose(ui, second.id);
-  assert.equal(ui.$('thread-select').value, second.id);
+  assert.equal(activeConversation(ui), second.id);
   pending.resolve(await normalFetch('/api/questions', pending.init));
-  await waitFor(() => ui.$('thread-select').options.length === 3 && ui.$('notice').textContent.includes('Question saved'));
-  assert.equal(ui.$('thread-select').value, second.id);
+  await waitFor(() => ui.$('conversation-choices').querySelectorAll('button').length === 3 && ui.$('notice').textContent.includes('Question saved'));
+  assert.equal(activeConversation(ui), second.id);
   assert.match(ui.$('messages').textContent, /Existing second/);
 });
 
@@ -349,8 +352,8 @@ test('closed initial save preserves a newly selected passage and the empty chat 
   paragraphs[1].click();
   assert.equal(ui.$('bubble-quote').textContent, 'Keep this.');
   pending.resolve(await normalFetch('/api/questions', pending.init));
-  await waitFor(() => ui.$('thread-select').options.length === 1 && ui.$('notice').textContent.includes('Question saved'));
-  assert.equal(ui.$('thread-select').value, '');
+  await waitFor(() => ui.$('conversation-choices').querySelectorAll('button').length === 1 && ui.$('notice').textContent.includes('Question saved'));
+  assert.equal(activeConversation(ui), '');
   assert.equal(ui.$('chat').hidden, true);
   assert.equal(ui.$('bubble-quote').textContent, 'Keep this.');
 });
@@ -377,12 +380,12 @@ test('completed initial save closes its bubble after switching conversations', a
   submit(ui, 'question-form');
   await waitFor(() => pending);
   choose(ui, second.id);
-  assert.equal(ui.$('thread-select').value, second.id);
+  assert.equal(activeConversation(ui), second.id);
   assert.equal(ui.$('bubble').hidden, false);
   pending.resolve(await normalFetch('/api/questions', pending.init));
-  await waitFor(() => ui.$('thread-select').options.length === 3 && ui.$('notice').textContent.includes('Question saved'));
+  await waitFor(() => ui.$('conversation-choices').querySelectorAll('button').length === 3 && ui.$('notice').textContent.includes('Question saved'));
   assert.equal(ui.$('bubble').hidden, true);
-  assert.equal(ui.$('thread-select').value, second.id);
+  assert.equal(activeConversation(ui), second.id);
   assert.match(ui.$('messages').textContent, /Existing second/);
 });
 
@@ -431,7 +434,7 @@ test('question bubble fits the usable narrow viewport', async t => {
   assert.ok(Number.parseFloat(bubble.style.left) + Number.parseFloat(bubble.style.width) <= 375);
 });
 
-test('unchanged polls preserve the native thread choices, focus and draft without DOM mutations', async t => {
+test('unchanged polls preserve finder choices, focus and draft without DOM mutations', async t => {
   const app = await service(t);
   const session = app.relay.connect({ worker: 'original-author' });
   const ui = await reader(app.origin);
@@ -452,24 +455,26 @@ test('unchanged polls preserve the native thread choices, focus and draft withou
   ui.$('bubble-close').click();
   app.store.question(questionInput(app.store.current(), { quote: 'quoted' }));
   await ui.poll();
-  const option = ui.$('thread-select').firstElementChild;
-  ui.$('thread-select').focus();
+  const choice = ui.$('conversation-choices').firstElementChild;
+  ui.$('conversation-toggle').focus();
   await assertQuietPoll();
-  assert.equal(ui.$('thread-select').firstElementChild, option);
-  assert.equal(ui.window.document.activeElement, ui.$('thread-select'));
+  assert.equal(ui.$('conversation-choices').firstElementChild, choice);
+  assert.equal(ui.window.document.activeElement, ui.$('conversation-toggle'));
   app.relay.disconnect(session);
   await ui.poll();
   assert.equal(ui.$('answer-alert').hidden, false, 'real presence changes still alert');
   await assertQuietPoll();
 });
 
-test('narrow arrival collapses Contents without persistence and empty chat has a visible option', async t => {
+test('narrow arrival collapses Contents without persistence and empty chat explains how to start', async t => {
   const app = await service(t);
   const ui = await reader(app.origin, window => { window.innerWidth = 390; });
   t.after(() => ui.dom.window.close());
   assert.equal(ui.$('toc-panel').hidden, true);
   assert.equal(ui.$('toc-toggle').getAttribute('aria-expanded'), 'false');
-  assert.equal(ui.$('thread-select').selectedOptions[0]?.textContent, 'No conversations yet');
+  assert.equal(ui.$('conversation-list').hidden, true);
+  assert.equal(ui.$('chat-empty').hidden, false);
+  assert.match(ui.$('chat-empty').textContent, /Ask about a passage to start/);
   ui.$('toc-toggle').click(); await ui.poll();
   assert.equal(ui.$('toc-panel').hidden, false, 'explicit reader choice survives polling');
   assert.equal(ui.window.localStorage.length, 0);
@@ -581,7 +586,7 @@ test('saved confirmation offers explicit navigation; quotes remain exact but dis
   assert.equal(ui.window.document.activeElement, ui.$('threads-panel'));
 });
 
-test('full conversation chooser distinguishes long questions without replacing the native control on idle polls', async t => {
+test('full conversation chooser distinguishes long questions with one keyboard-accessible finder', async t => {
   const app = await service(t);
   const doc = app.store.current();
   const prefix = 'A long shared introduction '.repeat(5);
@@ -595,24 +600,24 @@ test('full conversation chooser distinguishes long questions without replacing t
   assert.ok(first.textContent.includes(prefix));
   ui.$('conversation-list').open = true;
   first.click();
-  assert.equal(ui.$('thread-select').value, one.id);
+  assert.equal(activeConversation(ui), one.id);
   assert.equal(ui.$('conversation-list').open, false);
-  assert.equal(ui.window.document.activeElement, ui.$('thread-select'));
+  assert.equal(ui.window.document.activeElement, ui.$('conversation-toggle'));
   choose(ui, two.id);
   assert.match(ui.$('messages').textContent, /SECOND/);
 });
 
-test('changing conversation state restores focus to native and full-list controls', async t => {
+test('changing conversation state preserves finder focus and restores choice focus', async t => {
   const app = await service(t);
   const doc = app.store.current();
   const one = app.store.question(questionInput(doc, { question: 'First', client_key: 'focus-one', quote: 'quoted' }));
   const two = app.store.question(questionInput(doc, { question: 'Second', client_key: 'focus-two', quote: 'quoted' }));
   const ui = await reader(app.origin);
   t.after(() => ui.dom.window.close());
-  ui.$('thread-select').focus();
+  ui.$('conversation-toggle').focus();
   app.store.updateConversation(one.id, { closed: true });
   await ui.poll();
-  assert.equal(ui.window.document.activeElement, ui.$('thread-select'));
+  assert.equal(ui.window.document.activeElement, ui.$('conversation-toggle'));
   const choice = [...ui.$('conversation-choices').querySelectorAll('button')]
     .find(button => button.dataset.threadId === two.id);
   choice.focus();
@@ -926,4 +931,86 @@ test('a workflow revision received while narrow report is hidden keeps its saved
   assert.match(ui.$('report').textContent, /changed introduction/);
   assert.equal(ui.window.lastScrollDelta, undefined);
   assert.equal(ui.window.lastScrollPosition, undefined);
+});
+
+test('single header finder keeps historical conversations accessible without close controls', async t => {
+  const app = await service(t);
+  const thread = app.store.question(questionInput(app.store.current(), { quote: 'quoted', question: 'A historical conversation' }));
+  await runFakeAgent(app.origin);
+  app.store.updateConversation(thread.id, { closed: true });
+  const before = app.store.conversation(thread.id);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  assert.equal(ui.$('threads-panel').querySelector('select'), null);
+  assert.equal(ui.$('conversation-actions'), null);
+  assert.equal(ui.$('close-thread'), null);
+  const toggle = ui.$('conversation-toggle');
+  assert.ok(toggle.closest('.chat-heading'));
+  assert.equal(toggle.textContent, 'Find a conversation');
+  ui.$('conversation-list').open = true;
+  ui.$('conversation-choices').querySelector('button').focus();
+  ui.window.document.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(ui.$('conversation-list').open, false);
+  assert.equal(ui.window.document.activeElement, toggle);
+  ui.$('conversation-list').open = true;
+  ui.$('conversation-choices').querySelector('button').click();
+  await waitFor(() => !ui.$('conversation-choices').textContent.includes('New reply'));
+  assert.equal(ui.$('messages').dataset.conversationId, thread.id);
+  assert.equal(ui.window.document.activeElement, toggle);
+  const after = app.store.conversation(thread.id);
+  assert.equal(after.closed, 1);
+  assert.deepEqual(after.messages, before.messages);
+  assert.deepEqual(after.context, before.context);
+});
+
+test('both composers share keyboard send and accessible saving and retry states', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  ui.$('report').querySelector('p').click();
+  const form = ui.$('question-form'), field = ui.$('question'), send = ui.$('question-submit');
+  assert.equal(send.getAttribute('aria-label'), 'Send message');
+  assert.equal(send.title, 'Send message');
+  assert.equal(send.textContent, '');
+  assert.equal(ui.$('question-hint').textContent, ui.$('followup-hint').textContent);
+  const keyboard = options => field.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...options }));
+  field.value = 'An initial question\nwith two lines';
+  keyboard({}); keyboard({ ctrlKey: true, isComposing: true });
+  assert.equal(app.store.threads().length, 0, 'plain Enter and IME composition never send');
+  const normalFetch = ui.window.fetch;
+  let release;
+  ui.window.fetch = async (path, init) => {
+    const response = await normalFetch(path, init);
+    if (path === '/api/questions') {
+      await new Promise(resolve => { release = resolve; });
+      throw new Error('Lost acknowledgement');
+    }
+    return response;
+  };
+  keyboard({ ctrlKey: true });
+  await waitFor(() => release);
+  assert.equal(form.getAttribute('aria-busy'), 'true');
+  assert.equal(send.getAttribute('aria-label'), 'Saving message');
+  assert.equal(send.disabled, true);
+  keyboard({ metaKey: true });
+  assert.equal(app.store.threads().length, 1);
+  release();
+  await waitFor(() => send.getAttribute('aria-label') === 'Retry message');
+  assert.equal(form.getAttribute('aria-busy'), 'false');
+  assert.equal(send.disabled, false);
+  assert.equal(field.value, 'An initial question\nwith two lines');
+  ui.window.fetch = normalFetch;
+  send.focus();
+  send.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true, cancelable: true }));
+  await waitFor(() => ui.$('bubble').hidden);
+  assert.equal(app.store.threads().length, 1);
+  await runFakeAgent(app.origin); await ui.poll();
+  setFollowup(ui, 'A keyboard follow-up');
+  ui.$('followup').dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true, cancelable: true }));
+  await waitFor(() => app.store.threads().length === 2);
+  assert.equal(app.store.conversations().length, 1);
+  await waitFor(() => ui.$('followup').value === '');
+  ui.$('report').querySelector('p').click();
+  assert.equal(send.getAttribute('aria-label'), 'Send message');
+  assert.equal(form.getAttribute('aria-busy'), 'false');
 });

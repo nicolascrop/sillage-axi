@@ -60,6 +60,26 @@ const evaluate = async expression => {
 };
 const shot = async name => { await snapshot(); await c('screenshot', `${evidence}/${name}.png`); };
 let page;
+const composerStyle = id => evaluate(`() => {
+  const form=document.getElementById('${id}-form'),field=document.getElementById('${id}'),send=document.getElementById('${id}-submit');
+  field.focus({preventScroll:true});
+  const f=getComputedStyle(field),b=getComputedStyle(send),s=getComputedStyle(form),icon=send.querySelector('svg').getBoundingClientRect();
+  return {outline:f.outlineStyle,border:f.borderWidth,shadow:f.boxShadow,caret:f.caretColor,padding:f.padding,lineHeight:f.lineHeight,fontSize:f.fontSize,color:f.color,background:f.backgroundColor,formPadding:s.padding,formBackground:s.backgroundColor,formBorder:s.borderWidth,formShadow:s.boxShadow,buttonBackground:b.backgroundColor,buttonWidth:send.getBoundingClientRect().width,buttonHeight:send.getBoundingClientRect().height,iconWidth:icon.width,iconHeight:icon.height,name:send.getAttribute('aria-label'),hint:document.getElementById('${id}-hint').textContent,focused:document.activeElement===field};
+}`);
+const assertCaretComposer = style => {
+  assert.equal(style.focused, true);
+  assert.equal(style.outline, 'none');
+  assert.equal(style.border, '0px');
+  assert.equal(style.shadow, 'none');
+  assert.equal(style.caret, 'rgb(165, 175, 245)');
+  assert.equal(style.formBorder, '0px');
+  assert.equal(style.formShadow, 'none');
+  assert.equal(style.buttonBackground, 'rgba(0, 0, 0, 0)');
+  assert.equal(style.buttonWidth, 32); assert.equal(style.buttonHeight, 32);
+  assert.equal(style.iconWidth, 16); assert.equal(style.iconHeight, 16);
+  assert.equal(style.name, 'Send message');
+  assert.equal(style.hint, 'Ctrl / ⌘ + Enter to send');
+};
 const geometry = [];
 try {
   send({ type: 'ready', worker: 'layout-test-fixture-not-inference', presentation: { title: 'Orchard review', source, operation_key: 'browser-presentation', expected_revision_id: null, handoff } });
@@ -77,11 +97,16 @@ try {
   for (const [width, height] of [[1440, 1000], [1280, 720], [390, 844], [320, 844], [844, 390]]) {
     await c('resize', String(width), String(height));
     await c('open', origin);
-    const initial = await evaluate(`() => ({collapsed:document.getElementById('toc-panel').hidden, empty:document.getElementById('thread-select').selectedOptions[0]?.textContent, titleHidden:document.getElementById('report-title').hidden, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth})`);
+    const initial = await evaluate(`() => ({collapsed:document.getElementById('toc-panel').hidden, empty:document.getElementById('chat-empty').textContent,finderHidden:document.getElementById('conversation-list').hidden,select:!!document.querySelector('#threads-panel select'),actions:!!document.getElementById('conversation-actions'), titleHidden:document.getElementById('report-title').hidden, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth})`);
     assert.equal(initial.collapsed, true);
     assert.equal(initial.titleHidden, true);
     assert.equal(initial.width, initial.scroll);
-    if (!app.store.threads().length) assert.equal(initial.empty, 'No conversations yet');
+    assert.equal(initial.select, false);
+    assert.equal(initial.actions, false);
+    if (!app.store.threads().length) {
+      assert.match(initial.empty, /Ask about a passage to start/);
+      assert.equal(initial.finderHidden, true);
+    }
     await shot(`${width}-initial`);
     const table = await evaluate(`() => {const e=document.querySelector('.table-scroll');e.scrollIntoView({block:'center'});const t=e.querySelector('table');return {width:e.clientWidth,scroll:e.scrollWidth,cell:t.querySelector('td').clientWidth,height:t.getBoundingClientRect().height,tabIndex:e.tabIndex};}`);
     assert.ok(table.cell >= 120, 'table words must not be crushed to a few characters');
@@ -102,7 +127,10 @@ try {
     }
     assert.equal(bubble.quote.includes('**'), false);
     await shot(`${width}-question`);
-    await evaluate(`() => {document.getElementById('question').value='Why keep this reserve at ${width}px?';document.getElementById('question-form').requestSubmit();return true;}`);
+    const questionComposer = await composerStyle('question');
+    assertCaretComposer(questionComposer);
+    await evaluate(`() => {const q=document.getElementById('question');q.value='Why keep this reserve at ${width}px?';q.focus();return true;}`);
+    await c('press', 'Control+Enter');
     let saved;
     for (let i = 0; i < 20; i++) {
       saved = await evaluate(`() => {const n=document.getElementById('notice'),a=document.getElementById('notice-chat');return {text:n.textContent,top:n.getBoundingClientRect().top,bottom:a.getBoundingClientRect().bottom,hidden:a.hidden,height:innerHeight};}`);
@@ -140,7 +168,7 @@ try {
     assert.equal(chat.pageScroll, chat.pageClient, 'no document-level scroll');
     assert.equal(chat.sendName, 'Send message');
     assert.equal(chat.sendText, '');
-    assert.equal(chat.sendWidth, 44);
+    assert.equal(chat.sendWidth, 32);
     if (width > 700) assert.equal(chat.readerRight, chat.width - (width <= 900 ? 320 : width <= 1100 ? 330 : Math.max(360, Math.min(480, width * .3))), 'report scrollbar boundary is beside chat');
     assert.ok(chat.logScroll > chat.logClient, 'chat has one independent scroll region');
     if (height > 600) {
@@ -172,6 +200,9 @@ try {
     if (height > 600) assert.ok(contextFit.scroll <= contextFit.client + 2, 'expanded context stays in chat scroll, never a second panel scrollbar');
     await evaluate(`() => {document.getElementById('context-details').open=false;return true;}`);
     await evaluate(`() => {const f=document.getElementById('followup');f.scrollIntoView({block:'center'});f.focus({preventScroll:true});return true;}`);
+    const followupComposer = await composerStyle('followup');
+    assertCaretComposer(followupComposer);
+    assert.deepEqual(followupComposer, questionComposer, 'both composers share geometry, spacing, colors and caret-only focus');
     await shot(`${width}-composer`);
     await c('press', 'Control+Enter');
     await waitFor(() => events.some(e => e.type === 'request' && e.request.question === `What should I check next at ${width}px?`));
@@ -194,6 +225,18 @@ try {
     assert.equal(continued.draft, '');
     await evaluate(`() => {const b=document.getElementById('latest-reply');if (!b.hidden) b.click();else document.querySelector('.message.agent:last-of-type').scrollIntoView({block:'center'});return true;}`);
     await shot(`${width}-continuous`);
+    await evaluate(`() => {document.getElementById('conversation-toggle').focus();return true;}`);
+    await c('press', 'Enter');
+    const finder = await evaluate(`() => {const d=document.getElementById('conversation-list'),r=document.getElementById('conversation-choices').getBoundingClientRect(),h=document.querySelector('.chat-header').getBoundingClientRect();return {open:d.open,left:r.left,right:r.right,headerLeft:h.left,headerRight:h.right,focused:document.activeElement===document.getElementById('conversation-toggle')};}`);
+    assert.equal(finder.open, true);
+    assert.equal(finder.focused, true);
+    assert.ok(finder.left >= finder.headerLeft && finder.right <= finder.headerRight, 'finder is not clipped by the chat pane');
+    await shot(`${width}-finder`);
+    await c('press', 'Tab'); await c('press', 'Enter');
+    const chosen = await evaluate(`() => ({open:document.getElementById('conversation-list').open,focused:document.activeElement===document.getElementById('conversation-toggle'),id:document.getElementById('messages').dataset.conversationId})`);
+    assert.equal(chosen.open, false); assert.equal(chosen.focused, true);
+    assert.equal(chosen.id, request.thread_id, 'native keyboard finder selects the latest conversation');
+
     await evaluate(`() => {document.querySelector('.citation').click();return true;}`);
     const cited = await evaluate(`() => {const r=document.querySelector('#report > p').getBoundingClientRect();return {top:r.top,bottom:r.bottom,header:document.querySelector('.site-header').getBoundingClientRect().bottom,height:innerHeight};}`);
     assert.ok(cited.bottom > cited.header && cited.top < cited.height, 'citation explicitly returns to the source');
