@@ -63,7 +63,6 @@ function enhanceTables(root, label) {
 function focusDescriptor() {
   const active = document.activeElement;
   if (!active || active === document.body) return null;
-  if (active === $('thread-select')) return { type: 'thread-select' };
   const choice = active.closest?.('#conversation-choices button');
   if (choice) return { type: 'conversation-choice', threadId: choice.dataset.threadId };
   if (active.matches?.('#report [data-block-id]')) return {
@@ -82,10 +81,6 @@ function focusDescriptor() {
 }
 function restoreFocus(descriptor) {
   if (!descriptor) return;
-  if (descriptor.type === 'thread-select') {
-    $('thread-select').focus({ preventScroll: true });
-    return;
-  }
   if (descriptor.type === 'conversation-choice') {
     [...$('conversation-choices').querySelectorAll('button')]
       .find(button => button.dataset.threadId === descriptor.threadId)?.focus({ preventScroll: true });
@@ -184,22 +179,12 @@ function renderThreads() {
   } else if (activeThread !== null && !threads.some(t => t.id === activeThread)) {
     activeThread = threads[0]?.id ?? null;
   }
-  // Do not replace native options or invalidate focus/accessibility state on idle
+  // Do not replace conversation choices or invalidate focus/accessibility state on idle
   // polls. Presence is independent and must still surface real listening loss.
   const signature = JSON.stringify([threads, activeThread, report?.id]);
   if (signature === drawnThreads) { drawAgent(agent); return; }
   drawnThreads = signature;
   $('new-reply').hidden = !threads.some(t => t.unread);
-  $('thread-select').replaceChildren(...threads.map(thread => {
-    const option = node('option', compact(thread.messages[0].body, 64));
-    option.value = thread.id;
-    return option;
-  }));
-  if (!threads.length) {
-    const empty = node('option', 'No conversations yet');
-    empty.value = '';
-    $('thread-select').append(empty);
-  }
   $('conversation-list').hidden = !threads.length;
   $('conversation-choices').replaceChildren(...threads.map(thread => {
     const item = node('li');
@@ -214,16 +199,13 @@ function renderThreads() {
     button.addEventListener('click', () => {
       selectThread(thread.id);
       $('conversation-list').open = false;
-      $('thread-select').focus({ preventScroll: true });
+      $('conversation-toggle').focus({ preventScroll: true });
     });
     item.append(button);
     return item;
   }));
-  $('thread-select').disabled = !threads.length;
-  $('thread-select').value = activeThread || '';
   $('chat-empty').hidden = Boolean(activeThread);
   $('chat').hidden = !activeThread;
-  $('conversation-actions').hidden = !activeThread;
   if (!activeThread) $('conversation-state').hidden = true;
   highlightPassages();
   drawThread();
@@ -283,7 +265,7 @@ function openQuestion(element, quote) {
   $('bubble-status').textContent = 'Draft · not sent';
   $('question').value = '';
   $('question').disabled = false;
-  $('question-submit').disabled = false;
+  drawSend('question', {});
   placeBubble(element);
   $('question').focus({ preventScroll: true });
 }
@@ -372,7 +354,6 @@ function drawThread() {
     $('latest-reply').hidden = Boolean(reveal);
   }
   $('go-source').hidden = thread.anchor_status !== 'matched' || !passageElement(thread.block_id);
-  $('close-thread').textContent = thread.closed ? 'Reopen conversation' : 'Close conversation';
   $('snapshot-text').textContent = `Revision ${thread.revision_id}, lines ${thread.context.block.start_line}–${thread.context.block.end_line}\n\n${thread.context.block.source}`;
   drawComposer();
   restoreFocus(focus);
@@ -383,12 +364,18 @@ function drawComposer() {
   const busy = ['waiting', 'reserved'].includes(thread?.request_status);
   $('followup').value = draft?.text || '';
   $('followup').disabled = Boolean(draft?.payload);
-  $('followup-submit').disabled = Boolean(draft?.saving) || (busy && !draft?.payload);
-  const label = draft?.saving ? 'Saving message' : draft?.payload ? 'Retry message' : 'Send message';
-  $('followup-submit').setAttribute('aria-label', label);
-  $('followup-submit').title = label;
-  $('followup-form').setAttribute('aria-busy', String(Boolean(draft?.saving)));
+  drawSend('followup', { saving: draft?.saving, retry: draft?.payload, waiting: busy && !draft?.payload });
   setText('followup-status', draft?.error || (draft?.saving ? 'Saving…' : ''));
+}
+// Both composers expose the same send, saving and retry affordance. Their
+// captured payloads and durable endpoints remain independent.
+function drawSend(id, { saving = false, retry = false, waiting = false }) {
+  const button = $(`${id}-submit`);
+  button.disabled = Boolean(saving || waiting);
+  const label = saving ? 'Saving message' : retry ? 'Retry message' : 'Send message';
+  button.setAttribute('aria-label', label);
+  button.title = label;
+  $(`${id}-form`).setAttribute('aria-busy', String(Boolean(saving)));
 }
 // Short viewports scroll the whole chat instead of trapping its composer. There
 // is still exactly one vertical scroller per workspace pane (no page scrolling).
@@ -441,7 +428,7 @@ async function acknowledgeReplies(thread) {
   } catch (error) { notice(error.message); }
 }
 async function selectThread(id, markRead = true) {
-  if (activeThread !== id) { $('context-details').open = false; $('snapshot').open = false; $('conversation-actions').open = false; }
+  if (activeThread !== id) { $('context-details').open = false; $('snapshot').open = false; }
   showWorkspace('chat', false);
   activeThread = id;
   drawnThread = null;
@@ -535,7 +522,7 @@ $('report').addEventListener('keyup', event => { if (event.key === 'Shift') quot
 async function saveQuestion(current, selectedThread) {
   current.saving = true;
   if (bubble === current) {
-    $('question-submit').disabled = true;
+    drawSend('question', { saving: true });
     $('question').disabled = true;
     $('bubble-status').textContent = 'Saving locally…';
   }
@@ -553,7 +540,7 @@ async function saveQuestion(current, selectedThread) {
     questionDrafts.set(current.clientKey, current);
     if (bubble === current) {
       $('bubble-status').textContent = `${error.message}. Retry sends this same question safely; close to start a different draft.`;
-      $('question-submit').disabled = false;
+      drawSend('question', { retry: true });
     } else {
       notice('Question could not be saved. The exact question is preserved for retry.', null, current.clientKey);
     }
@@ -585,10 +572,10 @@ $('latest-reply').addEventListener('click', () => {
   $('latest-reply').hidden = true;
   acknowledgeReplies(threads.find(t => t.id === activeThread));
 });
-$('followup').addEventListener('keydown', event => {
+for (const id of ['question', 'followup']) $(`${id}-form`).addEventListener('keydown', event => {
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) {
     event.preventDefault();
-    if (!$('followup-submit').disabled) $('followup-form').requestSubmit();
+    if (!$(`${id}-submit`).disabled) $(`${id}-form`).requestSubmit();
   }
 });
 $('followup').addEventListener('input', () => {
@@ -621,6 +608,11 @@ $('notice-retry').addEventListener('click', () => {
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
   if (bubble) closeBubble();
+  else if ($('conversation-list').open) {
+    event.preventDefault();
+    $('conversation-list').open = false;
+    $('conversation-toggle').focus({ preventScroll: true });
+  }
   else if (!$('toc-panel').hidden) { closeContents(); $('toc-toggle').focus({ preventScroll: true }); }
 });
 window.addEventListener('resize', () => {
@@ -631,21 +623,12 @@ window.addEventListener('resize', () => {
 });
 window.visualViewport?.addEventListener('resize', () => { if (bubble) placeBubble(bubble.target); });
 window.visualViewport?.addEventListener('scroll', () => { if (bubble) placeBubble(bubble.target); });
-$('thread-select').addEventListener('change', () => selectThread($('thread-select').value));
 $('go-source').addEventListener('click', () => {
   const thread = threads.find(t => t.id === activeThread);
   if (thread?.anchor_status === 'matched') {
     const target = passageElement(thread.block_id);
     if (target) navigatePassage(target);
   }
-});
-$('close-thread').addEventListener('click', async () => {
-  const thread = threads.find(t => t.id === activeThread);
-  if (!thread) return;
-  try {
-    await api(`/api/conversations/${thread.id}`, { closed: !thread.closed }, 'PATCH');
-    await refreshThreads();
-  } catch (error) { notice(error.message); }
 });
 for (const view of ['report', 'chat']) $('show-' + view).addEventListener('click', event => {
   event.preventDefault();

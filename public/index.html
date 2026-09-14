@@ -35,11 +35,9 @@
     <aside id="threads-panel" class="threads-panel" aria-label="Passage chat" tabindex="-1">
       <header class="chat-header">
         <div class="chat-heading"><h2>Chat</h2>
-          <details id="conversation-actions" hidden><summary>Actions</summary><div class="chat-actions"><button id="close-thread" type="button">Close conversation</button><p class="muted">Closing keeps history and does not stop a reply.</p></div></details>
+          <details id="conversation-list" hidden><summary id="conversation-toggle">Find a conversation</summary><ul id="conversation-choices"></ul></details>
         </div>
-        <select id="thread-select" aria-label="Active conversation"><option value="">No conversations yet</option></select>
         <p id="conversation-state" class="muted" hidden></p>
-        <details id="conversation-list" hidden><summary>Find a conversation</summary><ul id="conversation-choices"></ul></details>
       </header>
       <p id="chat-empty" class="muted">Ask about a passage to start. Your questions and replies stay saved on this PC.</p>
       <div id="chat" hidden>
@@ -54,9 +52,9 @@
         </div>
         <button id="latest-reply" type="button" hidden>View latest reply</button>
         <div class="chat-activity"><p id="chat-status" role="status" aria-atomic="true"></p><p id="chat-next" class="muted"></p></div>
-        <form id="followup-form">
+        <form id="followup-form" class="composer" aria-busy="false">
           <label for="followup">Continue this conversation</label><textarea id="followup" rows="2" maxlength="4000" aria-describedby="chat-next followup-status followup-hint" placeholder="Ask a follow-up about this passage…" required></textarea>
-          <div class="composer-actions"><span id="followup-hint" class="muted">Ctrl / ⌘ + Enter to send</span><button id="followup-submit" class="icon-button" type="submit" aria-label="Send message" title="Send message"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 12 7-7 7 7M12 5v14"/></svg></button></div>
+          <div class="composer-actions"><span id="followup-hint" class="muted">Ctrl / ⌘ + Enter to send</span><button id="followup-submit" class="icon-button composer-send" type="submit" aria-label="Send message" title="Send message"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 4 15 8-15 8 3-8-3-8ZM8 12h12"/></svg></button></div>
           <p id="followup-status" role="status"></p>
         </form>
       </div>
@@ -69,9 +67,9 @@
       <blockquote id="bubble-quote"></blockquote>
       <p id="bubble-status" role="status" aria-live="polite"></p>
     </div>
-    <form id="question-form">
-      <label>Your question <textarea id="question" rows="3" maxlength="4000" required></textarea></label>
-      <button id="question-submit" type="submit">Ask question</button>
+    <form id="question-form" class="composer" aria-busy="false">
+      <label for="question">Your question</label><textarea id="question" rows="2" maxlength="4000" aria-describedby="bubble-status question-hint" placeholder="Ask about this passage…" required></textarea>
+      <div class="composer-actions"><span id="question-hint" class="muted">Ctrl / ⌘ + Enter to send</span><button id="question-submit" class="icon-button composer-send" type="submit" aria-label="Send message" title="Send message"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 4 15 8-15 8 3-8-3-8ZM8 12h12"/></svg></button></div>
     </form>
   </section>
 </body>
