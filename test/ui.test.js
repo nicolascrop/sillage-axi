@@ -208,6 +208,8 @@ test('selection rejects multiple passages and oversized quotes; keyboard selecti
   selection.removeAllRanges(); range.setStart(paragraphs[0].firstChild, 2); range.setEnd(paragraphs[0].firstChild, 7); selection.addRange(range);
   paragraphs[0].dispatchEvent(new ui.window.KeyboardEvent('keyup', { key: 'Shift', bubbles: true }));
   assert.equal(ui.$('bubble-quote').textContent, 'short');
+  paragraphs[0].click();
+  assert.equal(ui.$('bubble').hidden, true);
 });
 
 test('live revisions keep safe reading anchors, old drafts and chat provenance without silent remapping', async t => {

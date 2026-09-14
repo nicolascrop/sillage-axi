@@ -9,6 +9,7 @@ let bubble = null;
 let polling = false;
 let pollDone = Promise.resolve();
 let selectionHandled = false;
+let dismissedSamePassage = false;
 let agent = { state: 'unavailable' };
 const drafts = new Map();
 const questionDrafts = new Map();
@@ -536,6 +537,7 @@ $('toc-toggle').addEventListener('click', () => {
   $('layout').classList.toggle('toc-collapsed', $('toc-panel').hidden);
 });
 $('report').addEventListener('click', event => {
+  if (dismissedSamePassage) { dismissedSamePassage = false; return; }
   if (selectionHandled) { selectionHandled = false; return; }
   if (event.target.closest('a,button,input,textarea,summary,.wb-host') || window.getSelection()?.toString().trim()) return;
   const element = nearestPassage(event.target);
@@ -546,7 +548,7 @@ $('report').addEventListener('keydown', event => {
     event.preventDefault(); openQuestion(event.target);
   }
 });
-function quoteSelection() {
+function quoteSelection(event) {
   const selection = window.getSelection();
   const quote = selection?.toString().trim();
   selectionHandled = false;
@@ -557,10 +559,10 @@ function quoteSelection() {
   const last = nearestPassage(selection.focusNode);
   if (!first || first !== last || !$('report').contains(first)) { notice('Select text within a single semantic passage.'); return; }
   openQuestion(first, quote);
-  selectionHandled = true;
+  selectionHandled = event?.type === 'mouseup';
 }
 $('report').addEventListener('mouseup', quoteSelection);
-$('report').addEventListener('keyup', event => { if (event.key === 'Shift') quoteSelection(); });
+$('report').addEventListener('keyup', event => { if (event.key === 'Shift') quoteSelection(event); });
 async function saveQuestion(current, selectedThread) {
   current.saving = true;
   if (bubble === current) {
@@ -682,8 +684,10 @@ document.addEventListener('pointerdown', dismissBubbleAtWhiteboardBoundary, true
 // Capture before a passage's click opens a replacement. A mouseup text selection
 // already opened its bubble, so the completing click must not dismiss that draft.
 document.addEventListener('click', event => {
-  const selectionCompletes = selectionHandled && bubble?.target && nearestPassage(event.target) === bubble.target
+  const samePassage = Boolean(bubble?.target) && nearestPassage(event.target) === bubble.target;
+  const selectionCompletes = selectionHandled && samePassage
     && !event.target.closest?.('a,button,input,textarea,summary,.wb-host');
+  dismissedSamePassage = Boolean(bubble && !$('bubble').contains(event.target) && samePassage && !selectionCompletes);
   if (bubble && !$('bubble').contains(event.target) &&
     !selectionCompletes) {
     closeBubble($('bubble').contains(document.activeElement));
