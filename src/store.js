@@ -2,7 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { renderReport, renderMarkdown } from './render.js';
+import { renderReport, renderMarkdown, mermaidDiagrams } from './render.js';
+import { Whiteboards } from './whiteboard-store.js';
 
 export class Problem extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -84,6 +85,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS request_queue ON requests(status, created_at);
       PRAGMA user_version=2;
     `);
+    this.whiteboards = new Whiteboards(this);
   }
   close() { this.db.close(); }
   transaction(fn) {
@@ -111,7 +113,9 @@ export class Store {
     return row ? { language: row.language } : {};
   }
   documentRecord(row) {
-    return { ...row, ...this.documentLanguage(row.id), toc: JSON.parse(row.toc), blocks: this.blocks(row.id) };
+    const blocks = this.blocks(row.id);
+    return { ...row, ...this.documentLanguage(row.id), toc: JSON.parse(row.toc), blocks,
+      diagrams: mermaidDiagrams(row.source, blocks) };
   }
   importReport({ title, source, expected_revision_id, operation_key, handoff, language }) {
     text(title, 'title', 200); text(source, 'source', 1_000_000);
@@ -215,15 +219,15 @@ export class Store {
   followup(id, { question, client_key }) {
     const root = this.thread(this.conversationId(id));
     this.question({ revision_id: root.revision_id, block_id: root.block_id, quote: root.quote,
-      question, client_key }, root.id);
+      question, client_key }, root.id, root.context.whiteboard);
     return this.conversation(root.id);
   }
-  question(input, conversationId) {
+  question(input, conversationId, whiteboard) {
     const { revision_id, block_id, quote, question, client_key } = input;
     text(block_id, 'block_id', 100); text(quote, 'quote', 20_000);
     text(question, 'question', 4000); text(client_key, 'client_key', 100);
     requireValue(Number.isSafeInteger(revision_id), 400, 'revision_id must be an integer');
-    const payloadHash = digest({ revision_id, block_id, quote, question, conversation_id: conversationId });
+    const payloadHash = digest({ revision_id, block_id, quote, question, conversation_id: conversationId, ...(whiteboard ? { whiteboard } : {}) });
     return this.transaction(() => {
       const duplicate = this.db.prepare('SELECT * FROM requests WHERE client_key=?').get(client_key);
       if (duplicate) {
@@ -239,7 +243,7 @@ export class Store {
       const block = blocks.find(b => b.id === block_id);
       requireValue(block, 404, 'Passage not found in the specified revision');
       requireValue(hasQuote(block, quote), 400, 'Quote must occur in the passage source or visible text');
-      const context = { block, before: blocks[block.ordinal - 1]?.source ?? '',
+      const context = { ...(whiteboard ? { whiteboard } : {}), block, before: blocks[block.ordinal - 1]?.source ?? '',
         after: blocks[block.ordinal + 1]?.source ?? '' };
       const threadId = randomUUID();
       const now = this.now();

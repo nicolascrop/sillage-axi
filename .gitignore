@@ -7,3 +7,5 @@ node_modules/
 *.sqlite-wal
 coverage/
 .sillage/
+
+dist/

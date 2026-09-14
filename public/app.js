@@ -14,6 +14,14 @@ const questionDrafts = new Map();
 let savedNoticeThread = null;
 let workspaceView = 'report';
 let hiddenReportScroll = 0;
+const whiteboards = new window.SillageWhiteboards({ api, notice, feedback: async thread => {
+  activeThread = thread.id;
+  await refreshThreads();
+  notice('Whiteboard feedback saved. The agent receives a bounded text/geometry summary, not drawing pixels.', thread.id);
+} });
+$('whiteboard-history').addEventListener('toggle', () => {
+  if ($('whiteboard-history').open) whiteboards.history($('whiteboard-history-list')).catch(error => notice(error.message));
+});
 
 async function api(path, body, method = 'POST') {
   const response = await fetch(path, { ...(body === undefined ? {} : {
@@ -124,6 +132,8 @@ function renderDocument(value) {
   const heading = $('report').querySelector('h1');
   $('report-title').hidden = heading?.textContent.trim() === value.title.trim();
   enhanceTables($('report'), 'Report table');
+  whiteboards.currentRevision = value.id;
+  whiteboards.mount(value);
   $('toc').replaceChildren(...value.toc.map(heading => {
     const item = node('li', undefined, `depth-${heading.level}`);
     const link = node('a', heading.text);
@@ -318,7 +328,16 @@ function drawThread() {
       body.innerHTML = message.html;
       enhanceTables(body, 'Response table');
       item.append(body);
-    } else item.append(node('p', message.body));
+    } else {
+      item.append(node('p', message.body));
+      if (thread.context.whiteboard && message === thread.messages[0]) {
+        const wb = thread.context.whiteboard;
+        const details = node('details', undefined, 'whiteboard-feedback');
+        details.append(node('summary', `Whiteboard edits · revision ${wb.revision_id} · snapshot ${wb.snapshot_id}`),
+          node('p', wb.delivery), node('pre', wb.summary_lines.join('\n')));
+        item.append(details);
+      }
+    }
     for (const citation of message.citations) {
       const block = citation.block_id === thread.block_id ? thread.context.block : null;
       const citationDetails = node('details', undefined, 'citation-details');
@@ -437,8 +456,9 @@ async function selectThread(id, markRead = true) {
   $('latest-reply').hidden = true;
   if (markRead) await acknowledgeReplies(threads.find(t => t.id === id));
 }
-function updateDocument(value) {
+async function updateDocument(value) {
   if (report?.id === value?.id) return;
+  if (!await whiteboards.beforeRevision(value)) return;
   const reader = $('reader');
   const y = reader.hidden ? hiddenReportScroll : reader.scrollTop;
   const focus = focusDescriptor();
@@ -468,7 +488,7 @@ async function refreshThreads() {
   polling = true;
   try {
     const state = await api('/api/state');
-    if (state.revision_id !== (report?.id ?? null)) updateDocument(await api('/api/document'));
+    if (state.revision_id !== (report?.id ?? null)) await updateDocument(await api('/api/document'));
     agent = state.agent;
     threads = await api('/api/conversations');
     renderThreads();
@@ -497,7 +517,7 @@ $('toc-toggle').addEventListener('click', () => {
 });
 $('report').addEventListener('click', event => {
   if (selectionHandled) { selectionHandled = false; return; }
-  if (event.target.closest('a') || window.getSelection()?.toString().trim()) return;
+  if (event.target.closest('a,button,input,textarea,summary,.wb-host') || window.getSelection()?.toString().trim()) return;
   const element = nearestPassage(event.target);
   if (element) openQuestion(element);
 });
@@ -509,6 +529,7 @@ $('report').addEventListener('keydown', event => {
 function quoteSelection() {
   const selection = window.getSelection();
   const quote = selection?.toString().trim();
+  if (selection?.anchorNode?.parentElement?.closest('.wb-host')) return;
   selectionHandled = Boolean(quote);
   if (!quote) return;
   if (quote.length > 2000) { notice('Select at most 2,000 characters for a short quote.'); return; }

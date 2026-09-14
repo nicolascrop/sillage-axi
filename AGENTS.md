@@ -6,6 +6,7 @@
 - Product identity mapping and preserved compatibility surfaces are documented in `docs/migration-sillage-axi.md`; do not rename its listed v1 paths, variables, routes or identifiers.
 - Default data is `.data/sillage.sqlite` (gitignored). Tests use disposable databases under `.data/test/`. Never commit reader reports, questions, database files or secrets.
 - Active-local-agent lifecycle/stdio limits: `docs/local-agent.md`; workflow-owned browser live-revision updates: `README.md#live-report-updates`. No bundled inference; only one service per database.
+- Mermaid/Excalidraw conversion pins, local-font build safeguards, scene provenance and Lavish comparison: `docs/whiteboards.md`. Preserve exact semantic reconciliation and opaque-frame resource isolation when changing that integration.
 - Validation evidence and known coverage limitations: `docs/acceptance.md`.
 
 ## Maintaining this file
