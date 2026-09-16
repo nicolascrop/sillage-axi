@@ -84,7 +84,7 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now, scopeRoot = pr
         if (path === '/') {
           const key = randomUUID();
           if (reviews.size >= 1000) reviews.delete(reviews.keys().next().value);
-          reviews.set(key, { ended: false, retired: false, generation: reviewGeneration });
+          reviews.set(key, { ended: false, retired: false, generation: reviewGeneration, respondent: relay.session });
           body = body.toString().replace('<meta name="sillage-review" content="">', `<meta name="sillage-review" content="${key}">`);
         }
         return send(200, body, type);
@@ -128,6 +128,10 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now, scopeRoot = pr
         if (!review) throw new Problem(409, 'This review page has expired. Reload before ending the review.');
         if (review.retired) throw new Problem(409, 'This review page has expired. Reload before ending the review.');
         if (!review.ended) {
+          if (review.respondent !== relay.session) {
+            review.retired = true;
+            throw new Problem(409, 'This review page is no longer bound to its respondent. Reload before ending the review.');
+          }
           if (review.generation !== reviewGeneration || input.revision_id !== store.revisionId()) {
             review.retired = true;
             throw new Problem(409, 'The report changed. Review the latest revision before ending the session.');

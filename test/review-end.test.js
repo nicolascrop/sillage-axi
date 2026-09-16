@@ -23,6 +23,22 @@ async function review(app) {
   return { review_key, revision_id: app.store.revisionId() };
 }
 const end = (app, body, options = {}) => fetch(app.origin + '/review/end', { method: 'POST', headers, body: JSON.stringify(body), ...options });
+function holdEnd(app, body) {
+  const payload = JSON.stringify(body);
+  let resolve, reject;
+  const done = new Promise((res, rej) => { resolve = res; reject = rej; });
+  const request = http.request(app.origin + '/review/end', {
+    method: 'POST', headers: { ...headers, 'Content-Length': Buffer.byteLength(payload) },
+  }, response => {
+    let data = '';
+    response.setEncoding('utf8');
+    response.on('data', chunk => { data += chunk; });
+    response.on('end', () => resolve({ status: response.statusCode, body: JSON.parse(data) }));
+  });
+  request.on('error', reject);
+  request.write(payload.slice(0, -1));
+  return { release: () => request.end(payload.slice(-1)), done };
+}
 async function waitFor(condition) {
   for (let i = 0; i < 200; i++) { if (condition()) return; await new Promise(resolve => setTimeout(resolve, 10)); }
   assert.fail('Local bridge condition timed out');
@@ -104,9 +120,9 @@ test('a stale end page cannot disconnect a replacement respondent on retry', asy
 
 test('ending one review page retires sibling pages before they can target a replacement', async t => {
   const app = await service(t);
+  app.relay.connect({ worker: 'original-author' });
   const page = await review(app);
   const sibling = await review(app);
-  app.relay.connect({ worker: 'original-author' });
   assert.deepEqual(await (await end(app, page)).json(), { ended: true });
   const replacement = app.relay.connect({ worker: 'replacement-author' });
   const result = await end(app, sibling);
@@ -114,6 +130,34 @@ test('ending one review page retires sibling pages before they can target a repl
   assert.match((await result.json()).error, /expired/);
   assert.equal(app.relay.session.id, replacement.session_id);
   app.relay.disconnect(replacement);
+  assert.deepEqual(await (await end(app, await review(app))).json(), { ended: true });
+});
+
+test('end actions retire when the bound respondent is replaced before delivery', async t => {
+  const app = await service(t);
+  const original = app.relay.connect({ worker: 'original-author' });
+  const lostPage = await review(app);
+  app.relay.disconnect(original);
+  const replacement = app.relay.connect({ worker: 'replacement-author' });
+  const lost = await end(app, { ...lostPage, revision_id: app.store.revisionId() });
+  assert.equal(lost.status, 409);
+  assert.match((await lost.json()).error, /reload/i);
+  assert.equal(app.relay.session.id, replacement.session_id);
+  const fresh = await review(app);
+  assert.deepEqual(await (await end(app, fresh)).json(), { ended: true });
+  assert.equal(app.relay.status().state, 'unavailable');
+
+  const delayedOriginal = app.relay.connect({ worker: 'delayed-original' });
+  const delayedPage = await review(app);
+  const held = holdEnd(app, delayedPage);
+  await new Promise(resolve => setImmediate(resolve));
+  app.relay.disconnect(delayedOriginal);
+  const delayedReplacement = app.relay.connect({ worker: 'delayed-replacement' });
+  held.release();
+  const delayed = await held.done;
+  assert.equal(delayed.status, 409);
+  assert.match(delayed.body.error, /reload/i);
+  assert.equal(app.relay.session.id, delayedReplacement.session_id);
   assert.deepEqual(await (await end(app, await review(app))).json(), { ended: true });
 });
 
