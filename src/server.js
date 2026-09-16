@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { readFileSync, realpathSync } from 'node:fs';
 import { legacyGate, isEntry, failure } from './entry.js';
 import { whiteboardAssets, whiteboardFrameHtml, whiteboardCsp } from './whiteboard-assets.js';
@@ -46,6 +47,10 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now, scopeRoot = pr
   store.recoverLocalReservations();
   const relay = new LocalRelay(store, now);
   const bundledAsset = whiteboardAssets();
+  // Page-scoped end acknowledgements, not respondent handles or durable sessions.
+  // Unknown/evicted keys refuse instead of ever disconnecting a newer respondent.
+  let reviewGeneration = 0;
+  const reviews = new Map();
   const sweep = setInterval(() => relay.sweep(), 1000);
   sweep.unref();
   const server = http.createServer(async (req, res) => {
@@ -75,7 +80,14 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now, scopeRoot = pr
       });
       if (req.method === 'GET' && assets.has(path)) {
         const [file, type] = assets.get(path);
-        return send(200, readFileSync(new URL(`../public/${file}`, import.meta.url)), type);
+        let body = readFileSync(new URL(`../public/${file}`, import.meta.url));
+        if (path === '/') {
+          const key = randomUUID();
+          if (reviews.size >= 1000) reviews.delete(reviews.keys().next().value);
+          reviews.set(key, { ended: false, retired: false, generation: reviewGeneration, respondent: relay.session });
+          body = body.toString().replace('<meta name="sillage-review" content="">', `<meta name="sillage-review" content="${key}">`);
+        }
+        return send(200, body, type);
       }
       if (req.method === 'GET' && path === '/api/inspect') {
         const query = new URL(req.url, `http://${req.headers.host}`).searchParams;
@@ -107,6 +119,33 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now, scopeRoot = pr
       if (req.method === 'GET' && whiteboardPath && !whiteboardPath[3]) return send(200, store.whiteboards.load(Number(whiteboardPath[1]), whiteboardPath[2]));
       if (!['POST', 'PATCH'].includes(req.method)) throw new Problem(404, 'Route not found');
       const input = await jsonBody(req, whiteboardPath && !whiteboardPath[3] ? 20_000_000 : 2_000_000);
+      if (req.method === 'POST' && path === '/review/end') {
+        if (Object.keys(input).some(key => !['review_key', 'revision_id'].includes(key)) ||
+          typeof input.review_key !== 'string' || !(input.revision_id === null || Number.isSafeInteger(input.revision_id))) {
+          throw new Problem(400, 'Expected the current review key and revision');
+        }
+        const review = reviews.get(input.review_key);
+        if (!review) throw new Problem(409, 'This review page has expired. Reload before ending the review.');
+        if (review.retired) throw new Problem(409, 'This review page has expired. Reload before ending the review.');
+        if (!review.ended) {
+          if (review.respondent !== relay.session) {
+            review.retired = true;
+            throw new Problem(409, 'This review page is no longer bound to its respondent. Reload before ending the review.');
+          }
+          if (review.generation !== reviewGeneration || input.revision_id !== store.revisionId()) {
+            review.retired = true;
+            throw new Problem(409, 'The report changed. Review the latest revision before ending the session.');
+          }
+          // Resolve only the active respondent here; never send its handle to a page.
+          if (relay.status().state === 'active') relay.disconnect({ session_id: relay.session.id });
+          review.ended = true;
+          for (const sibling of reviews.values()) {
+            if (sibling !== review && sibling.generation === review.generation) sibling.retired = true;
+          }
+          reviewGeneration++;
+        }
+        return send(200, { ended: true });
+      }
       if (req.method === 'POST' && whiteboardPath) return send(201, whiteboardPath[3]
         ? store.whiteboards.feedback(Number(whiteboardPath[1]), whiteboardPath[2], input)
         : store.whiteboards.save(Number(whiteboardPath[1]), whiteboardPath[2], input));

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="sillage-review" content="">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sillage AXI · local report reader</title>
   <link rel="icon" href="/sillage.svg" type="image/svg+xml">
@@ -13,12 +14,13 @@
   <a class="skip-link" href="#reader">Skip to report</a>
   <header class="site-header">
     <div class="topbar">
-      <div class="brand"><img src="/sillage.svg" width="28" height="28" alt=""><strong>Sillage AXI</strong></div>
-      <div class="toolbar">
-        <button id="toc-toggle" type="button" aria-expanded="false" aria-controls="toc-panel">Contents</button>
-        <a id="show-report" class="narrow-only" href="#reader">Report</a>
-        <a id="show-chat" href="#threads-panel">Chat</a>
-        <a id="new-reply" href="#threads-panel" hidden>New reply</a>
+      <div class="brand">
+        <button id="toc-toggle" class="icon-button" type="button" aria-label="Table of contents" title="Show table of contents" aria-expanded="false" aria-controls="toc-panel"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h18v16H3ZM9 4v16"/><path class="toc-direction" d="m13 9 3 3-3 3"/></svg></button>
+        <img src="/sillage.svg" width="28" height="28" alt=""><strong>Sillage AXI</strong>
+      </div>
+      <div id="review-actions">
+        <button id="review-menu-toggle" class="icon-button" type="button" disabled aria-label="Review options" title="Review options" aria-haspopup="menu" aria-expanded="false" aria-controls="review-menu"><span aria-hidden="true">⋮</span></button>
+        <div id="review-menu" role="menu" aria-labelledby="review-menu-toggle" hidden><button id="end-session" type="button" role="menuitem" tabindex="-1">End session</button></div>
       </div>
     </div>
     <div class="header-feedback">
@@ -26,6 +28,8 @@
       <p id="answer-alert" role="alert" hidden></p>
     </div>
   </header>
+  <nav id="workspace-switcher" aria-label="Review panels" hidden><a id="show-report" href="#reader" aria-current="page">Report</a><a id="show-chat" href="#threads-panel">Conversation</a></nav>
+  <section id="review-ended" aria-labelledby="review-ended-title" hidden><h1 id="review-ended-title" tabindex="-1">Review ended</h1><p>Your report, questions, replies and saved whiteboards remain on this PC. The local service is still running.</p><p>You can close this tab. To review again, <a href="/">reopen the report</a> and ask the presenting conversation to resume answering.</p></section>
   <div class="layout toc-collapsed" id="layout">
     <nav id="toc-panel" class="toc-panel" aria-label="Table of contents" hidden><h2>Contents</h2><ol id="toc"></ol></nav>
     <main id="reader" tabindex="0" aria-label="Report">
@@ -33,9 +37,9 @@
       <p class="hint">Click a passage or select a quote to ask a question. With a keyboard, focus a passage and press Enter.</p>
       <article id="report" aria-label="Markdown report"><p>Return to the conversation that produced your report and ask to present it with Sillage.</p></article>
     </main>
-    <aside id="threads-panel" class="threads-panel" aria-label="Passage chat" tabindex="-1">
+    <aside id="threads-panel" class="threads-panel" aria-label="Passage conversation" tabindex="-1">
       <header class="chat-header">
-        <div class="chat-heading"><h2>Chat</h2>
+        <div class="chat-heading"><h3>Conversation</h3>
           <details id="conversation-list" hidden><summary id="conversation-toggle">Find a conversation</summary><ul id="conversation-choices"></ul></details>
         </div>
         <p id="conversation-state" class="muted" hidden></p>
@@ -62,7 +66,7 @@
     </aside>
   </div>
   <section id="bubble" role="dialog" aria-labelledby="bubble-title" hidden>
-    <header><h2 id="bubble-title">Ask about this passage</h2><button id="bubble-close" type="button" aria-label="Close question bubble">×</button></header>
+    <header><h2 id="bubble-title">Ask about this passage</h2></header>
     <div id="bubble-context">
       <p id="bubble-anchor" class="muted"></p>
       <blockquote id="bubble-quote"></blockquote>

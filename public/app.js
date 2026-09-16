@@ -7,13 +7,19 @@ let drawnThreads = null;
 let threadSelectionInitialized = false;
 let bubble = null;
 let polling = false;
+let pollDone = Promise.resolve();
 let selectionHandled = false;
+let dismissedSamePassage = false;
 let agent = { state: 'unavailable' };
 const drafts = new Map();
 const questionDrafts = new Map();
 let savedNoticeThread = null;
 let workspaceView = 'report';
 let hiddenReportScroll = 0;
+let endingReview = false;
+let reviewEnded = false;
+let pollTimer;
+let pendingWrites = 0;
 const whiteboards = new window.SillageWhiteboards({ api, notice, feedback: async thread => {
   activeThread = thread.id;
   await refreshThreads();
@@ -24,15 +30,20 @@ $('whiteboard-history').addEventListener('toggle', () => {
 });
 
 async function api(path, body, method = 'POST') {
-  const response = await fetch(path, { ...(body === undefined ? {} : {
-    method, headers: { 'Content-Type': 'application/json', 'X-Sillage-Local': '1' },
-    body: JSON.stringify(body),
-  }), signal: AbortSignal.timeout(10_000) });
-  const value = await response.json();
-  if (!response.ok) throw new Error(value.error || `Local service returned ${response.status}`);
-  return value;
+  if (reviewEnded) throw new Error('Review ended. Reopen the report to continue.');
+  if (body !== undefined) pendingWrites++;
+  try {
+    const response = await fetch(path, { ...(body === undefined ? {} : {
+      method, headers: { 'Content-Type': 'application/json', 'X-Sillage-Local': '1' },
+      body: JSON.stringify(body),
+    }), signal: AbortSignal.timeout(10_000) });
+    const value = await response.json();
+    if (!response.ok) throw new Error(value.error || `Local service returned ${response.status}`);
+    return value;
+  } finally { if (body !== undefined) pendingWrites--; }
 }
 function notice(message, conversationId = null, retryKey) {
+  if (reviewEnded) return;
   const fallbackRetry = [...questionDrafts.entries()]
     .find(([, draft]) => !draft.saving)?.[0] || null;
   const visibleRetry = retryKey === undefined ? fallbackRetry : retryKey;
@@ -182,6 +193,7 @@ function labels(thread) {
     thread.request_status === 'failed' ? 'reply failed' : ''].filter(Boolean).join(' · ');
 }
 function renderThreads() {
+  if (endingReview || reviewEnded) return;
   const focus = focusDescriptor();
   if (!threadSelectionInitialized) {
     if (threads.length) activeThread = threads[0].id;
@@ -194,7 +206,6 @@ function renderThreads() {
   const signature = JSON.stringify([threads, activeThread, report?.id]);
   if (signature === drawnThreads) { drawAgent(agent); return; }
   drawnThreads = signature;
-  $('new-reply').hidden = !threads.some(t => t.unread);
   $('conversation-list').hidden = !threads.length;
   $('conversation-choices').replaceChildren(...threads.map(thread => {
     const item = node('li');
@@ -247,19 +258,20 @@ function placeBubble(target) {
   const height = element.getBoundingClientRect().height;
   element.style.top = `${Math.max(minTop, Math.min(rect?.top ?? minTop, bottom - height - 12))}px`;
 }
-function closeBubble() {
+function closeBubble(restore = true) {
   // A local draft is reversible UI state; closing never prompts, even while a
   // save is in flight. Its captured payload can still finish durably in the chat.
   const target = bubble?.target;
   const retryKey = bubble && questionDrafts.has(bubble.clientKey) ? bubble.clientKey : null;
+  selectionHandled = false;
   bubble = null;
   $('bubble').hidden = true;
   highlightPassages();
-  target?.focus({ preventScroll: true });
+  if (restore) target?.focus({ preventScroll: true });
   if (retryKey) notice('Question could not be saved. The exact question is preserved for retry.', null, retryKey);
 }
 function openQuestion(element, quote) {
-  if (!report) return;
+  if (!report || endingReview || reviewEnded) return;
   const block = report.blocks.find(b => b.id === element.dataset.blockId);
   if (!block) return;
   const exact = quote || block.source.trim();
@@ -412,7 +424,9 @@ function showWorkspace(view, focus = true) {
   if (focus) $(view === 'chat' ? 'threads-panel' : 'reader').focus({ preventScroll: true });
 }
 function syncWorkspace() {
+  if (reviewEnded) return;
   const narrow = innerWidth <= 700;
+  $('workspace-switcher').hidden = !narrow;
   const hideReport = narrow && workspaceView !== 'report';
   if (hideReport && !$('reader').hidden) hiddenReportScroll = $('reader').scrollTop;
   const wasHidden = $('reader').hidden;
@@ -428,6 +442,7 @@ function syncWorkspace() {
 function closeContents() {
   $('toc-panel').hidden = true;
   $('toc-toggle').setAttribute('aria-expanded', 'false');
+  $('toc-toggle').title = 'Show table of contents';
   $('layout').classList.add('toc-collapsed');
 }
 function navigatePassage(target) {
@@ -458,7 +473,7 @@ async function selectThread(id, markRead = true) {
 }
 async function updateDocument(value) {
   if (report?.id === value?.id) return;
-  if (!await whiteboards.beforeRevision(value)) return;
+  if (!await whiteboards.beforeRevision(value) || reviewEnded) return;
   const reader = $('reader');
   const y = reader.hidden ? hiddenReportScroll : reader.scrollTop;
   const focus = focusDescriptor();
@@ -484,18 +499,23 @@ async function updateDocument(value) {
   notice(`Report updated. ${anchor ? 'Reading position kept at a matched passage.' : 'Approximate reading position kept; no safe visible anchor.'}`);
 }
 async function refreshThreads() {
-  if (polling) return;
+  if (polling || endingReview || reviewEnded) return;
   polling = true;
+  let finishPoll;
+  pollDone = new Promise(resolve => { finishPoll = resolve; });
   try {
     const state = await api('/api/state');
+    if (endingReview || reviewEnded) return;
     if (state.revision_id !== (report?.id ?? null)) await updateDocument(await api('/api/document'));
+    if (endingReview || reviewEnded) return;
     agent = state.agent;
     threads = await api('/api/conversations');
     renderThreads();
   } catch (error) {
+    if (endingReview || reviewEnded) return;
     drawAgent({ state: 'unavailable' });
     notice(`Local service cannot be reached. Return to the presenting conversation to resume it, then reload. Saved threads remain on disk. ${error.message}`);
-  } finally { polling = false; }
+  } finally { polling = false; finishPoll(); }
 }
 
 closeContents();
@@ -513,9 +533,11 @@ $('toc-toggle').addEventListener('click', () => {
   if (innerWidth <= 700) showWorkspace('report', false);
   $('toc-panel').hidden = !$('toc-panel').hidden;
   $('toc-toggle').setAttribute('aria-expanded', String(!$('toc-panel').hidden));
+  $('toc-toggle').title = $('toc-panel').hidden ? 'Show table of contents' : 'Hide table of contents';
   $('layout').classList.toggle('toc-collapsed', $('toc-panel').hidden);
 });
 $('report').addEventListener('click', event => {
+  if (dismissedSamePassage) { dismissedSamePassage = false; return; }
   if (selectionHandled) { selectionHandled = false; return; }
   if (event.target.closest('a,button,input,textarea,summary,.wb-host') || window.getSelection()?.toString().trim()) return;
   const element = nearestPassage(event.target);
@@ -526,20 +548,21 @@ $('report').addEventListener('keydown', event => {
     event.preventDefault(); openQuestion(event.target);
   }
 });
-function quoteSelection() {
+function quoteSelection(event) {
   const selection = window.getSelection();
   const quote = selection?.toString().trim();
+  selectionHandled = false;
   if (selection?.anchorNode?.parentElement?.closest('.wb-host')) return;
-  selectionHandled = Boolean(quote);
   if (!quote) return;
   if (quote.length > 2000) { notice('Select at most 2,000 characters for a short quote.'); return; }
   const first = nearestPassage(selection.anchorNode);
   const last = nearestPassage(selection.focusNode);
   if (!first || first !== last || !$('report').contains(first)) { notice('Select text within a single semantic passage.'); return; }
   openQuestion(first, quote);
+  selectionHandled = event?.type === 'mouseup';
 }
 $('report').addEventListener('mouseup', quoteSelection);
-$('report').addEventListener('keyup', event => { if (event.key === 'Shift') quoteSelection(); });
+$('report').addEventListener('keyup', event => { if (event.key === 'Shift') quoteSelection(event); });
 async function saveQuestion(current, selectedThread) {
   current.saving = true;
   if (bubble === current) {
@@ -621,14 +644,116 @@ $('followup-form').addEventListener('submit', async event => {
   } catch (error) { draft.error = `${error.message}. Retry sends the same message safely.`; }
   finally { draft.saving = false; if (activeThread === id) drawComposer(); }
 });
-$('bubble-close').addEventListener('click', closeBubble);
+function closeReviewMenu(restore = false) {
+  $('review-menu').hidden = true;
+  $('review-menu-toggle').setAttribute('aria-expanded', 'false');
+  if (restore) $('review-menu-toggle').focus({ preventScroll: true });
+}
+function openReviewMenu() {
+  if ($('review-menu-toggle').disabled || endingReview || reviewEnded) return;
+  $('review-menu').hidden = false;
+  $('review-menu-toggle').setAttribute('aria-expanded', 'true');
+  $('end-session').focus({ preventScroll: true });
+}
+$('review-menu-toggle').addEventListener('click', () => {
+  if ($('review-menu').hidden) openReviewMenu(); else closeReviewMenu(true);
+});
+$('review-menu-toggle').addEventListener('keydown', event => {
+  if (['ArrowDown', 'ArrowUp'].includes(event.key)) { event.preventDefault(); openReviewMenu(); }
+});
+$('review-menu').addEventListener('keydown', event => {
+  if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    event.preventDefault(); $('end-session').focus();
+  }
+  // Restore the trigger before native Tab moves on; no focus trap for one item.
+  if (event.key === 'Tab') closeReviewMenu(true);
+});
+$('review-actions').addEventListener('focusout', event => {
+  if (event.relatedTarget && !$('review-actions').contains(event.relatedTarget)) closeReviewMenu();
+});
+function activeWhiteboardFrame(target) {
+  const frame = target?.closest?.('#report .wb-host iframe');
+  return frame && !frame.inert && !frame.classList.contains('wb-locked') ? frame : null;
+}
+function dismissBubbleAtWhiteboardBoundary(event) {
+  if (bubble && activeWhiteboardFrame(event.target)) closeBubble(false);
+}
+document.addEventListener('focusin', dismissBubbleAtWhiteboardBoundary, true);
+document.addEventListener('pointerover', dismissBubbleAtWhiteboardBoundary, true);
+document.addEventListener('pointerdown', dismissBubbleAtWhiteboardBoundary, true);
+// Capture before a passage's click opens a replacement. A mouseup text selection
+// already opened its bubble, so the completing click must not dismiss that draft.
+document.addEventListener('click', event => {
+  const samePassage = Boolean(bubble?.target) && nearestPassage(event.target) === bubble.target;
+  const selectionCompletes = selectionHandled && samePassage
+    && !event.target.closest?.('a,button,input,textarea,summary,.wb-host');
+  selectionHandled = selectionCompletes;
+  dismissedSamePassage = Boolean(bubble && !$('bubble').contains(event.target) && samePassage && !selectionCompletes);
+  if (bubble && !$('bubble').contains(event.target) &&
+    !selectionCompletes) {
+    closeBubble($('bubble').contains(document.activeElement));
+  }
+  if (!$('review-menu').hidden && !$('review-actions').contains(event.target)) {
+    closeReviewMenu($('review-menu').contains(document.activeElement));
+  }
+}, true);
+$('end-session').addEventListener('click', async () => {
+  if (endingReview || reviewEnded) return;
+  closeReviewMenu(true);
+  // Do not hide uncertain payloads or detach a frame with unsaved annotations.
+  if (pendingWrites || bubble?.saving || questionDrafts.size || [...drafts.values()].some(draft => draft.payload)) {
+    notice('Finish saving or retry pending messages before ending the session.');
+    return;
+  }
+  const endingRevision = report?.id ?? null;
+  endingReview = true;
+  whiteboards.beginEnd();
+  $('layout').inert = true;
+  $('workspace-switcher').inert = true;
+  $('bubble').inert = true;
+  $('toc-toggle').disabled = true;
+  $('review-menu-toggle').disabled = true;
+  notice('Ending review…');
+  try {
+    // Let an already-started revision/whiteboard replacement finish coherently.
+    // The captured revision still guards against ending a newly published report.
+    await pollDone;
+    await whiteboards.beforeEnd();
+    await api('/review/end', { review_key: document.querySelector('meta[name="sillage-review"]').content, revision_id: endingRevision });
+    reviewEnded = true;
+    clearInterval(pollTimer);
+    closeBubble(false);
+    closeContents();
+    whiteboards.dispose();
+    $('layout').hidden = true;
+    $('workspace-switcher').hidden = true;
+    $('review-actions').hidden = true;
+    $('toc-toggle').hidden = true;
+    document.querySelector('.skip-link').hidden = true;
+    document.querySelector('.header-feedback').hidden = true;
+    $('review-ended').hidden = false;
+    $('review-ended-title').focus({ preventScroll: true });
+  } catch (error) {
+    if (!reviewEnded) whiteboards.cancelEnd();
+    notice(`Review could not end. ${error.message} Your review remains open; retry End session when ready.`);
+  } finally {
+    endingReview = false;
+    if (!reviewEnded) {
+      for (const id of ['layout', 'workspace-switcher', 'bubble']) $(id).inert = false;
+      $('toc-toggle').disabled = false;
+      $('review-menu-toggle').disabled = false;
+      $('review-menu-toggle').focus({ preventScroll: true });
+    }
+  }
+});
 $('notice-retry').addEventListener('click', () => {
   const key = $('notice-retry').dataset.retryKey;
   retryQuestion(key);
 });
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
-  if (bubble) closeBubble();
+  if (!$('review-menu').hidden) { event.preventDefault(); closeReviewMenu(true); }
+  else if (bubble) { event.preventDefault(); closeBubble(); }
   else if ($('conversation-list').open) {
     event.preventDefault();
     $('conversation-list').open = false;
@@ -656,17 +781,8 @@ for (const view of ['report', 'chat']) $('show-' + view).addEventListener('click
   if (innerWidth <= 900) closeContents();
   showWorkspace(view);
 });
-$('new-reply').addEventListener('click', async event => {
-  event.preventDefault();
-  const thread = threads.find(t => t.unread);
-  if (!thread) return;
-  if (innerWidth <= 900) closeContents();
-  await selectThread(thread.id);
-  if (activeThread !== thread.id || $('threads-panel').hidden) return;
-  const reply = $('messages').querySelector('.message.agent:last-of-type');
-  reply?.focus({ preventScroll: true });
-});
 function navigateHash(hash) {
+  if (endingReview || reviewEnded) return false;
   if (hash === '#reader' || hash === '#threads-panel') {
     if (innerWidth <= 900) closeContents();
     showWorkspace(hash === '#reader' ? 'report' : 'chat');
@@ -683,4 +799,5 @@ document.addEventListener('click', event => {
 window.addEventListener('hashchange', () => navigateHash(location.hash));
 try { renderDocument(await api('/api/document')); await refreshThreads(); navigateHash(location.hash); }
 catch (error) { notice(`Return to the presenting conversation to resume the local service, then reload. ${error.message}`); }
-setInterval(refreshThreads, 2000);
+pollTimer = setInterval(refreshThreads, 2000);
+$('review-menu-toggle').disabled = false;

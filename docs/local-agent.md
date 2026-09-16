@@ -65,6 +65,13 @@ All writes require `Content-Type: application/json` and `X-Sillage-Local: 1`; sc
 4. Post the actual reply or an honest failure through the unchanged `POST /api/agent/requests/REQUEST_ID/answer` with `{lease_token,status,body,citations}`. Citations always use the supplied original revision. Body supports inert Markdown; field limits and terminal/idempotency semantics are unchanged.
 5. `POST /api/agent/disconnect` with `{session_id}` when finished. Unfinished managed work receives a terminal failure; no question is deleted.
 
+The reader’s **⋮ → End session** action can also explicitly disconnect the active
+respondent using the same failure semantics. It resolves the handle server-side,
+never exposes `session_id` to the browser, and leaves the service and saved data
+intact. The bridge observes the expired session on its next poll and emits its
+existing error/stopped events; it is not killed or automatically reconnected.
+See [ending a review](../README.md#ending-a-review) for the reader-only action.
+
 `GET /api/state` retains `{revision_id,agent:{state,worker,busy,heartbeat_seconds,expires_seconds}}`, without a session handle or report/context text. Status remains observable through HTTP/CLI even though the reader hides healthy presence.
 
 Lost presence, explicit disconnect, deadline, service shutdown or crash recovery fails the exact unfinished managed reservation. It never overwrites a different lease or terminal result. Queued, unclaimed work stays waiting for a resumed respondent. To retry a failed turn, send a follow-up after listening resumes; no hidden retry or provider fallback occurs. Legacy reservations retain expiry/reclaim behavior; legacy/demo workers cannot take work while a managed respondent is connected (409).

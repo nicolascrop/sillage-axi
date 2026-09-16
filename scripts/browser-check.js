@@ -11,6 +11,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { decode } from '@toon-format/toon';
 import { createApp } from '../src/server.js';
 import { runLocalAgent } from '../src/local-agent.js';
+import { checkReviewControls } from '../test-support/final-review-browser.js';
 
 if (!/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(process.env.CHROME_DEVTOOLS_AXI_BROWSER_URL || '')) {
   throw new Error('Set CHROME_DEVTOOLS_AXI_BROWSER_URL to an existing local Chrome and configure chrome-devtools-axi first.');
@@ -52,7 +53,13 @@ const c = async (...args) => {
 };
 // CLI help is human guidance, not part of the structured observation.
 const observation = text => decode(text.split(/\nhelp\[/)[0]);
-const snapshot = () => c('snapshot');
+const snapshot = async () => {
+  const pages = observation(await c('pages')).pages;
+  page = pages.find(p => p.url.replace(/\/$/, '') === origin)?.id;
+  assert.ok(page, 'Select only the disposable fixture page');
+  await c('selectpage', String(page));
+  return c('snapshot');
+};
 const evaluate = async expression => {
   await snapshot(); // Reacquire after every navigation/mutation; no stale AX references.
   const result = observation(await c('eval', expression)).result;
@@ -94,8 +101,8 @@ try {
   page = pages.find(p => p.url.replace(/\/$/, '') === origin)?.id;
   assert.ok(page, 'the fixture must have its own explicitly selected page');
   await c('selectpage', String(page));
-  for (const [width, height] of [[1440, 1000], [1280, 720], [390, 844], [320, 844], [844, 390]]) {
-    await c('resize', String(width), String(height));
+  for (const [width, height] of [[1440, 1000], [1280, 720], [800, 900], [390, 844], [320, 844], [844, 390], [320, 480]]) {
+    await c('emulate', '--viewport', `${width}x${height}x1`);
     await c('open', origin);
     const initial = await evaluate(`() => ({collapsed:document.getElementById('toc-panel').hidden, empty:document.getElementById('chat-empty').textContent,finderHidden:document.getElementById('conversation-list').hidden,select:!!document.querySelector('#threads-panel select'),actions:!!document.getElementById('conversation-actions'), titleHidden:document.getElementById('report-title').hidden, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth})`);
     assert.equal(initial.collapsed, true);
@@ -107,13 +114,14 @@ try {
       assert.match(initial.empty, /Ask about a passage to start/);
       assert.equal(initial.finderHidden, true);
     }
-    await shot(`${width}-initial`);
+    await shot(`${width}x${height}-initial`);
+    await checkReviewControls({ evaluate, c, snapshot, shot, width, height });
     const table = await evaluate(`() => {const e=document.querySelector('.table-scroll');e.scrollIntoView({block:'center'});const t=e.querySelector('table');return {width:e.clientWidth,scroll:e.scrollWidth,cell:t.querySelector('td').clientWidth,height:t.getBoundingClientRect().height,tabIndex:e.tabIndex};}`);
     assert.ok(table.cell >= 120, 'table words must not be crushed to a few characters');
     assert.ok(table.height < 400, 'two rows must not stretch into a thousand-pixel column');
     assert.equal(table.tabIndex, 0);
     if (width < 700) assert.ok(table.scroll > table.width, 'narrow tables must scroll inside their own region');
-    await shot(`${width}-table`);
+    await shot(`${width}x${height}-table`);
     await evaluate(`() => {const p=document.querySelector('#report > p');p.scrollIntoView({block:'center'});p.click();return true;}`);
     const bubble = await evaluate(`() => {const r=document.getElementById('bubble').getBoundingClientRect(),q=document.getElementById('question-submit').getBoundingClientRect();return {top:r.top,bottom:r.bottom,right:r.right,height:innerHeight,width:document.documentElement.clientWidth,submitBottom:q.bottom,quote:document.getElementById('bubble-quote').textContent};}`);
     assert.ok(bubble.top >= 0 && bubble.bottom <= bubble.height, 'whole bubble fits vertically');
@@ -126,10 +134,10 @@ try {
       assert.equal(reached.page, 0);
     }
     assert.equal(bubble.quote.includes('**'), false);
-    await shot(`${width}-question`);
+    await shot(`${width}x${height}-question`);
     const questionComposer = await composerStyle('question');
     assertCaretComposer(questionComposer);
-    await evaluate(`() => {const q=document.getElementById('question');q.value='Why keep this reserve at ${width}px?';q.focus();return true;}`);
+    await evaluate(`() => {const q=document.getElementById('question');q.value='Why keep this reserve at ${width}x${height}px?';q.focus();return true;}`);
     await c('press', 'Control+Enter');
     let saved;
     for (let i = 0; i < 20; i++) {
@@ -139,15 +147,15 @@ try {
     assert.equal(saved.text, 'Question saved.');
     assert.equal(saved.hidden, false);
     assert.ok(saved.top >= 0 && saved.bottom <= saved.height, 'confirmation and explicit next action remain visible near the reading position');
-    await waitFor(() => events.some(e => e.type === 'request' && e.request.question === `Why keep this reserve at ${width}px?`));
-    const request = events.find(e => e.type === 'request' && e.request.question === `Why keep this reserve at ${width}px?`).request;
+    await waitFor(() => events.some(e => e.type === 'request' && e.request.question === `Why keep this reserve at ${width}x${height}px?`));
+    const request = events.find(e => e.type === 'request' && e.request.question === `Why keep this reserve at ${width}x${height}px?`).request;
     assert.deepEqual(request.handoff, { revision_id: doc.id, ...handoff });
     await delay(2200);
-    const drafting = await evaluate(`() => {const f=document.getElementById('followup');f.value='What should I check next at ${width}px?';f.dispatchEvent(new Event('input'));return {status:document.getElementById('chat-status').textContent,editable:!f.disabled,sendDisabled:document.getElementById('followup-submit').disabled,y:document.getElementById('reader').scrollTop};}`);
+    const drafting = await evaluate(`() => {const f=document.getElementById('followup');f.value='What should I check next at ${width}x${height}px?';f.dispatchEvent(new Event('input'));return {status:document.getElementById('chat-status').textContent,editable:!f.disabled,sendDisabled:document.getElementById('followup-submit').disabled,y:document.getElementById('reader').scrollTop};}`);
     assert.equal(drafting.status, 'Agent is replying');
     assert.equal(drafting.editable, true);
     assert.equal(drafting.sendDisabled, true);
-    await shot(`${width}-replying`);
+    await shot(`${width}x${height}-replying`);
     send({ type: 'answer', request_id: request.request_id, status: 'answered',
       body: '## Why keep reserves?\n\n**Young roots need protection.**\n\n' + '- Reassess the soil before watering.\n'.repeat(12) + '\nSupplied test fixture, not inference.',
       citations: [{ revision_id: doc.id, block_id: request.block.id, quote: request.quote }] });
@@ -155,13 +163,14 @@ try {
     await delay(2200);
     const arrived = await evaluate(`() => ({y:document.getElementById('reader').scrollTop,draft:document.getElementById('followup').value,status:document.getElementById('chat-status').textContent})`);
     assert.equal(arrived.y, drafting.y, 'answer arrival must not pull a reader out of the report');
-    assert.equal(arrived.draft, `What should I check next at ${width}px?`);
+    assert.equal(arrived.draft, `What should I check next at ${width}x${height}px?`);
     assert.equal(arrived.status, 'Reply saved');
     await evaluate(`() => {document.getElementById('notice-chat').click();return true;}`);
     const chat = await evaluate(`() => {const p=document.getElementById('threads-panel'),l=document.getElementById(innerHeight<=600?'threads-panel':'chat-scroll'),r=document.getElementById('reader'),f=document.getElementById('followup-submit'),box=p.getBoundingClientRect();return {panelClient:p.clientHeight,panelScroll:p.scrollHeight,logClient:l.clientHeight,logScroll:l.scrollHeight,followupBottom:f.getBoundingClientRect().bottom,height:innerHeight,contextOpen:document.getElementById('context-details').open,top:box.top,bottom:box.bottom,right:box.right,width:innerWidth,readerRight:r.getBoundingClientRect().right,headerBottom:document.querySelector('.site-header').getBoundingClientRect().bottom,pageScroll:document.documentElement.scrollHeight,pageClient:document.documentElement.clientHeight,radius:getComputedStyle(p).borderRadius,shadow:getComputedStyle(p).boxShadow,sendName:f.getAttribute('aria-label'),sendText:f.textContent,sendWidth:f.getBoundingClientRect().width};}`);
     assert.equal(chat.contextOpen, false);
     assert.equal(chat.right, chat.width, 'chat reaches right viewport edge');
-    assert.equal(chat.top, chat.headerBottom, 'chat starts directly below header');
+    const switcherHeight = await evaluate(`() => document.getElementById('workspace-switcher').getBoundingClientRect().height`);
+    assert.equal(chat.top, chat.headerBottom + switcherHeight, 'chat starts below header and the narrow-only selector');
     assert.equal(chat.bottom, chat.height, 'chat fills available height');
     assert.equal(chat.radius, '0px');
     assert.equal(chat.shadow, 'none');
@@ -195,7 +204,7 @@ try {
       assert.ok(afterKey.chat > 0, 'keyboard scroll works within the named chat region');
       assert.equal(afterKey.page, 0);
     }
-    await shot(`${width}-answer`);
+    await shot(`${width}x${height}-answer`);
     const contextFit = await evaluate(`() => {document.getElementById('context-details').open=true;const p=document.getElementById('threads-panel');return {client:p.clientHeight,scroll:p.scrollHeight};}`);
     if (height > 600) assert.ok(contextFit.scroll <= contextFit.client + 2, 'expanded context stays in chat scroll, never a second panel scrollbar');
     await evaluate(`() => {document.getElementById('context-details').open=false;return true;}`);
@@ -203,10 +212,10 @@ try {
     const followupComposer = await composerStyle('followup');
     assertCaretComposer(followupComposer);
     assert.deepEqual(followupComposer, questionComposer, 'both composers share geometry, spacing, colors and caret-only focus');
-    await shot(`${width}-composer`);
+    await shot(`${width}x${height}-composer`);
     await c('press', 'Control+Enter');
-    await waitFor(() => events.some(e => e.type === 'request' && e.request.question === `What should I check next at ${width}px?`));
-    const followup = events.find(e => e.type === 'request' && e.request.question === `What should I check next at ${width}px?`).request;
+    await waitFor(() => events.some(e => e.type === 'request' && e.request.question === `What should I check next at ${width}x${height}px?`));
+    const followup = events.find(e => e.type === 'request' && e.request.question === `What should I check next at ${width}x${height}px?`).request;
     assert.equal(followup.conversation_id, request.thread_id);
     assert.equal(followup.document.id, doc.id);
     assert.equal(followup.quote, request.quote);
@@ -224,14 +233,14 @@ try {
     assert.equal(continued.focused, true);
     assert.equal(continued.draft, '');
     await evaluate(`() => {const b=document.getElementById('latest-reply');if (!b.hidden) b.click();else document.querySelector('.message.agent:last-of-type').scrollIntoView({block:'center'});return true;}`);
-    await shot(`${width}-continuous`);
+    await shot(`${width}x${height}-continuous`);
     await evaluate(`() => {document.getElementById('conversation-toggle').focus();return true;}`);
     await c('press', 'Enter');
     const finder = await evaluate(`() => {const d=document.getElementById('conversation-list'),r=document.getElementById('conversation-choices').getBoundingClientRect(),h=document.querySelector('.chat-header').getBoundingClientRect();return {open:d.open,left:r.left,right:r.right,headerLeft:h.left,headerRight:h.right,focused:document.activeElement===document.getElementById('conversation-toggle')};}`);
     assert.equal(finder.open, true);
     assert.equal(finder.focused, true);
     assert.ok(finder.left >= finder.headerLeft && finder.right <= finder.headerRight, 'finder is not clipped by the chat pane');
-    await shot(`${width}-finder`);
+    await shot(`${width}x${height}-finder`);
     await c('press', 'Tab'); await c('press', 'Enter');
     const chosen = await evaluate(`() => ({open:document.getElementById('conversation-list').open,focused:document.activeElement===document.getElementById('conversation-toggle'),id:document.getElementById('messages').dataset.conversationId})`);
     assert.equal(chosen.open, false); assert.equal(chosen.focused, true);
@@ -245,7 +254,7 @@ try {
     assert.equal(await evaluate(`() => document.getElementById('bubble').hidden`), true);
     await c('press', 'Enter');
     assert.equal(await evaluate(`() => document.getElementById('bubble').hidden`), false);
-    await evaluate(`() => {document.getElementById('bubble-close').click();return true;}`);
+    await evaluate(`() => {document.querySelector('.brand strong').click();return true;}`);
     assert.equal(await evaluate(`() => document.getElementById('bubble').hidden`), true);
   }
   await evaluate(`() => {const f=document.getElementById('followup');f.value='Keep this interrupted question';f.dispatchEvent(new Event('input'));document.getElementById('followup-form').requestSubmit();return true;}`);
@@ -271,7 +280,7 @@ try {
   assert.match(restored.question, /Keep this interrupted question/);
   assert.equal(restored.revision, 'Quoted passage');
   assert.equal(restored.collapsed, true);
-  await c('resize', '1440', '1000');
+  await c('emulate', '--viewport', '1440x1000x1');
   const anchor = await evaluate(`() => {document.getElementById('show-report').click();const r=document.getElementById('reader');r.scrollTop=900;const blocks=[...document.querySelectorAll('#report [data-block-id]')];blocks.sort((a,b)=>Math.abs(a.getBoundingClientRect().top-r.getBoundingClientRect().top-16)-Math.abs(b.getBoundingClientRect().top-r.getBoundingClientRect().top-16));const p=blocks[0];return {id:p.id,offset:p.getBoundingClientRect().top-r.getBoundingClientRect().top,chat:document.getElementById('chat-scroll').scrollTop};}`);
   const updatedSource = source.replace('# Orchard review', '# Orchard review\n\nAn added introduction from the synthetic author.');
   app.store.importReport({title:'Orchard review', source:updatedSource});
@@ -280,7 +289,7 @@ try {
   assert.ok(Math.abs(updated.offset-anchor.offset) < 2, 'live revision keeps a safe report anchor inside its pane');
   assert.equal(updated.chat, anchor.chat, 'report revision does not move chat reading');
   await shot('live-revision-wide');
-  await c('resize', '390', '844');
+  await c('emulate', '--viewport', '390x844x1');
   await evaluate(`() => {document.getElementById('show-report').click();document.getElementById('reader').scrollTop=400;document.getElementById('show-chat').click();return true;}`);
   app.store.importReport({title:'Orchard review', source:updatedSource+'\n\nOne more synthetic update.'});
   await delay(2200);
@@ -288,10 +297,27 @@ try {
   assert.equal(hiddenUpdate.hidden, true);
   assert.equal(hiddenUpdate.y, 400, 'hidden report revision retains approximate saved position');
   await shot('live-revision-narrow');
+  // The explicit menu action (not tab departure or Escape) disconnects a real
+  // local respondent while leaving this fixture's service and history available.
+  const endSession = app.relay.connect({worker:'end-session-browser-fixture'});
+  const beforeEnd = app.store.conversations();
+  await evaluate(`() => {document.getElementById('review-menu-toggle').focus();return true;}`);
+  await c('press', 'Enter'); await c('press', 'Enter');
+  for (let i=0; i<20 && await evaluate(`() => document.getElementById('review-ended').hidden`); i++) await delay(100);
+  assert.equal(await evaluate(`() => document.getElementById('review-ended').hidden`), false);
+  assert.equal(await evaluate(`() => document.activeElement.id`), 'review-ended-title');
+  assert.equal(app.relay.status().state, 'unavailable');
+  assert.deepEqual(app.store.conversations(), beforeEnd);
+  assert.equal(app.server.listening, true);
+  assert.throws(() => app.relay.heartbeat(endSession));
+  await shot('review-ended');
+  await c('open', origin);
+  assert.equal(await evaluate(`() => document.getElementById('layout').hidden`), false);
+  assert.equal(app.store.conversations().length, beforeEnd.length);
   writeFileSync(`${evidence}/geometry.json`, JSON.stringify(geometry, null, 2));
   writeFileSync(`${evidence}/console.txt`, await c('console'));
   writeFileSync(`${evidence}/network.txt`, await c('network'));
-  writeFileSync(`${evidence}/result.json`, JSON.stringify({ result: 'passed', viewports: ['1440x1000', '1280x720', '390x844', '320x844', '844x390'], handoffEvents: events.map(e => e.type), source }, null, 2));
+  writeFileSync(`${evidence}/result.json`, JSON.stringify({ result: 'passed', viewports: ['1440x1000', '1280x720', '800x900', '390x844', '320x844', '844x390', '320x480'], handoffEvents: events.map(e => e.type), source }, null, 2));
   console.log(`Browser layout regressions passed. Evidence: ${evidence}`);
 } finally {
   input.end();

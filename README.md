@@ -191,16 +191,47 @@ The default durable store is `.data/sillage.sqlite` relative to the working dire
 
 ## Walkthrough
 
-1. Ask the agent that produced your report to present it with Sillage. It supplies its existing report/context and owns listening before opening the reader; there is no manual respondent setup for you. Contents starts collapsed at every width, without a persisted preference. The report stays central; chat fills the right edge below the header on wide screens. Each pane scrolls independently. On narrow screens, **Report / Chat** switches between full-height panes without discarding drafts or reading positions; the report opens first.
-2. Click a passage (or focus it and press Enter), or select part of a paragraph across inline formatting. A short quote narrows the question without losing the full passage, neighbors or original revision. Use the compact **Send message** icon (or Ctrl/⌘ + Enter): a visible **Question saved · View conversation** confirmation links to the durable question without moving the report automatically. Close an unsent draft with × or Escape directly, with no confirmation.
-3. The agent's reply appears as safe Markdown beneath your question. Choose **Find a conversation** in the Chat header for full questions, passage previews and the current selection; Tab to a choice and press Enter. Escape closes the finder and returns focus to its header control. The activity line distinguishes queued questions, a reply in progress, saved replies and failures, with the next step beside the composer. You can draft while waiting; the **Send message** arrow icon (or Ctrl/⌘ + Enter) becomes available once the turn finishes. Enter alone adds a new line. The compact **Quoted passage**, **Citation** and **Report details** disclosures keep original revisions and source snapshots available on demand, not in the main chat labels. Follow-ups retain that quote and carry prior turns to the respondent. Expanded citations and reading position survive new turns; **View latest reply** lets you catch up without being pulled away from the report. **New reply** opens a saved reply and acknowledges the displayed turns; opening the Chat pane alone does not clear it, and a racing unseen reply stays indicated. Both question and follow-up composers use the same compact send icon, spacing, theme and shortcut. Textarea focus uses only the theme-colored caret, with no focus border/halo; buttons and navigation retain visible keyboard focus. The compact **Go to passage** icon explicitly navigates and focuses the source (switching to Report on narrow screens), never silently replacing it. Send and passage icons have accessible names, hover titles and visible keyboard focus; a failed save changes the send action to **Retry message** without losing its payload.
-4. Restart the same service/database: reports, conversation turns, citations, unread state and original snapshots remain. A local draft is temporary; saved conversations are not. There is no close/delete action in the reader. Historical closed conversations remain selectable with their complete history; the existing CLI/API organizational close flag remains compatible and never deletes or cancels a turn.
+1. Ask the agent that produced your report to present it with Sillage. It supplies its existing report/context and owns listening before opening the reader; there is no manual respondent setup for you. The icon-only **Table of contents** button sits to the left of the Sillage AXI mark, with an accessible name, hover title and visible expanded state. Contents starts collapsed at every width, without a persisted preference. The report stays central; chat fills the right edge below the header on wide screens. Each pane scrolls independently. On narrow screens, **Report / Conversation** switches between full-height panes without discarding drafts or reading positions; the report opens first.
+2. Click a passage (or focus it and press Enter), or select part of a paragraph across inline formatting. A short quote narrows the question without losing the full passage, neighbors or original revision. Use the compact **Send message** icon (or Ctrl/⌘ + Enter): a visible **Question saved · View conversation** confirmation links to the durable question without moving the report automatically. Dismiss an unsent draft by clicking outside its popover or pressing Escape, with no confirmation. Clicking inside it keeps the draft open; Escape returns focus to its passage.
+3. The agent's reply appears as safe Markdown beneath your question. Choose **Find a conversation** in the compact Conversation header for full questions, passage previews and the current selection; Tab to a choice and press Enter. Escape closes the finder and returns focus to its header control. The activity line distinguishes queued questions, a reply in progress, saved replies and failures, with the next step beside the composer. You can draft while waiting; the **Send message** arrow icon (or Ctrl/⌘ + Enter) becomes available once the turn finishes. Enter alone adds a new line. The compact **Quoted passage**, **Citation** and **Report details** disclosures keep original revisions and source snapshots available on demand, not in the main chat labels. Follow-ups retain that quote and carry prior turns to the respondent. Expanded citations and reading position survive new turns; **View latest reply** lets you catch up without being pulled away from the report. The conversation finder marks unread replies with **New reply**. Selecting a conversation or choosing **View latest reply** acknowledges only displayed turns; opening the Conversation pane alone does not clear unread state, and a racing unseen reply stays indicated. There are no duplicate Report, Chat or New reply controls in the site header. Both question and follow-up composers use the same compact send icon, spacing, theme and shortcut. Textarea focus uses only the theme-colored caret, with no focus border/halo; buttons and navigation retain visible keyboard focus. The compact **Go to passage** icon explicitly navigates and focuses the source (switching to Report on narrow screens), never silently replacing it. Send and passage icons have accessible names, hover titles and visible keyboard focus; a failed save changes the send action to **Retry message** without losing its payload.
+4. Restart the same service/database: reports, conversation turns, citations, unread state and original snapshots remain. A local draft is temporary; saved conversations are not. There is no conversation close/delete action in the reader; **End session** ends only the current review, as described below. Historical closed conversations remain selectable with their complete history; the existing CLI/API organizational close flag remains compatible and never deletes or cancels a turn.
 5. The authoring workflow can publish a guarded new revision through the same API/CLI. Changed or ambiguous passages say **Passage to review** and retain their original snapshot, rather than linking to similar-looking text. A follow-up still refers to that original revision. To discuss new wording, start a question on the new passage.
 
 The existing v1 one-question/one-reply threads remain intact as individual turns.
 An additive conversation grouping powers continuous chat; existing CLI thread inspection
 can still inspect each turn independently. There is no provider-driven auto-editing or
 report switching. Any revision must come from the authorized authoring workflow.
+
+## Ending a review
+
+Open the discreet **⋮ Review options** menu and choose **End session**. Enter or
+Space opens the menu, arrow keys reach its action, Escape returns focus to the
+trigger, and Tab or an outside click dismisses it without ending anything.
+Only activating **End session** ends this review and disconnects the active local
+respondent. The browser displays **Review ended**, stops polling, and leaves the
+service running. Close the tab when ready; browsers need not permit programmatic
+tab closure. Reopening the report retains saved history and does not reconnect a
+respondent automatically. Ask the presenting conversation to resume answering.
+
+The existing disconnect behavior fails an unfinished managed reply honestly;
+unclaimed questions remain queued. Reports, questions, replies, citations and
+saved whiteboards are not deleted or organizationally closed. Finish/retry pending
+message saves and whiteboard edits or feedback before ending: the reader refuses
+to hide uncertain work, and flushes idle whiteboards before detaching their frames.
+Unsent ordinary text drafts remain temporary. A failed end acknowledgement leaves
+the review open with a retry message; retrying the same page action cannot end a
+newly attached respondent.
+
+The additive reader-only `POST /review/end` action uses a page-scoped opaque key
+and the displayed revision. Keys are not respondent session IDs; the server resolves
+the active respondent and returns only an end acknowledgement. Stale revisions
+refuse before disconnecting. Keys are ephemeral to this service instance and the
+latest 1,000 page loads; an expired page must reload, never silently retarget.
+Existing HTTP/JSON/JSONL agent endpoints and payloads, SQLite, and handoff contracts
+are unchanged. The action uses the same loopback, same-origin and custom JSON-write
+header protections as other local writes; it is not a generic session manager.
+Closing a menu, pressing Escape, resizing, reloading or closing a tab never sends
+this action. No shutdown, model/provider control or external lifecycle hook is added.
 
 ## Annotatable Mermaid diagrams
 
@@ -262,7 +293,7 @@ single scroll region so context, status and composer remain reachable rather tha
 being clipped. The report still scrolls independently. Short question bubbles may
 also need scrolling to reach the question action.
 
-At 700px width or less, **Report / Chat** explicitly selects the visible full-height
+At 700px width or less, **Report / Conversation** explicitly selects the visible full-height
 pane; hidden content is outside the keyboard order. On intermediate widths Contents
 opens as an overlay; choose a heading or press Escape to close it. Contents starts
 collapsed everywhere. English remains the interface language, with author-supplied

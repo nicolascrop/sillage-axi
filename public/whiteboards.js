@@ -2,7 +2,7 @@
 // nonce; opaque-origin messages never get to select a revision, diagram or API path.
 window.SillageWhiteboards = class {
   constructor({ api, notice, feedback }) {
-    Object.assign(this, { api, notice, feedback, entries: new Set(), expanded: null });
+    Object.assign(this, { api, notice, feedback, entries: new Set(), expanded: null, lifecycle: 0, ending: false, disposed: false });
     window.addEventListener('message', event => this.message(event));
     window.addEventListener('beforeunload', event => {
       if ([...this.entries].some(e => e.editing || e.busy || e.failed || e.feedbackBusy || e.feedbackPending)) { event.preventDefault(); event.returnValue = ''; }
@@ -17,6 +17,16 @@ window.SillageWhiteboards = class {
         } else if (!event.shiftKey && event.target === e.activate) { event.preventDefault(); e.edit.focus(); }
       }
     });
+  }
+  beginEnd() {
+    if (this.disposed || this.ending) return;
+    this.ending = true;
+    this.lifecycle++;
+  }
+  cancelEnd() {
+    if (this.disposed || !this.ending) return;
+    this.ending = false;
+    this.lifecycle++;
   }
   post(e, type, data = {}) { e.frame.contentWindow?.postMessage({ ...data, type: 'sillage-whiteboard:' + type, channelId: e.channel }, '*'); }
   element(tag, text, className) {
@@ -193,6 +203,20 @@ window.SillageWhiteboards = class {
     for (const e of inline) { clearTimeout(e.bootTimer); this.entries.delete(e); }
     return true;
   }
+  async beforeEnd() {
+    const pending = () => [...this.entries].some(e => e.editing || this.expanded === e || e.busy || e.failed || e.feedbackBusy || e.feedbackPending);
+    if (pending()) throw new Error('Finish whiteboard editing and retry pending saves or feedback before ending the session.');
+    await Promise.all([...this.entries].map(e => this.flush(e)));
+    if (pending()) throw new Error('Whiteboard work is still pending. Finish or retry it before ending the session.');
+  }
+  dispose() {
+    this.lifecycle++;
+    this.ending = true;
+    this.disposed = true;
+    for (const e of this.entries) { clearTimeout(e.bootTimer); e.frame.remove(); }
+    this.entries.clear();
+    this.expanded = null;
+  }
   enlarge(e) {
     if (this.expanded) return;
     this.expanded = e;
@@ -226,18 +250,23 @@ window.SillageWhiteboards = class {
     if (e.historical) { clearTimeout(e.bootTimer); e.host.remove(); this.entries.delete(e); }
   }
   async history(container) {
+    if (this.disposed || this.ending) return;
+    const lifecycle = this.lifecycle;
     const history = await this.api('/api/whiteboards');
+    if (this.disposed || this.ending || lifecycle !== this.lifecycle) return;
     container.replaceChildren();
     if (!history.length) container.append(this.element('p', 'No saved whiteboards yet.'));
     for (const saved of history) {
       const button = this.element('button', `Revision ${saved.revision_id} · diagram ${saved.block_id.slice(0, 8)} · snapshot ${saved.id}`);
       button.type = 'button';
       button.onclick = async () => {
-        if (this.expanded) return;
+        if (this.disposed || this.ending || this.expanded) return;
+        const actionLifecycle = this.lifecycle;
         const existing = [...this.entries].find(e => e.revision_id === saved.revision_id && e.block_id === saved.block_id);
         if (existing) { this.enlarge(existing); return; }
         try {
           const data = await this.api(`/api/whiteboards/${saved.revision_id}/${saved.block_id}`);
+          if (this.disposed || this.ending || actionLifecycle !== this.lifecycle) return;
           const host = this.element('div', null, 'wb-host'); document.body.append(host);
           this.embed(host, data.diagram, true);
         } catch (error) { this.notice(error.message); }
