@@ -49,6 +49,7 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now, scopeRoot = pr
   const bundledAsset = whiteboardAssets();
   // Page-scoped end acknowledgements, not respondent handles or durable sessions.
   // Unknown/evicted keys refuse instead of ever disconnecting a newer respondent.
+  let reviewGeneration = 0;
   const reviews = new Map();
   const sweep = setInterval(() => relay.sweep(), 1000);
   sweep.unref();
@@ -83,7 +84,7 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now, scopeRoot = pr
         if (path === '/') {
           const key = randomUUID();
           if (reviews.size >= 1000) reviews.delete(reviews.keys().next().value);
-          reviews.set(key, { ended: false });
+          reviews.set(key, { ended: false, retired: false, generation: reviewGeneration });
           body = body.toString().replace('<meta name="sillage-review" content="">', `<meta name="sillage-review" content="${key}">`);
         }
         return send(200, body, type);
@@ -125,11 +126,19 @@ export function createApp({ dbPath = '.data/sillage.sqlite', now, scopeRoot = pr
         }
         const review = reviews.get(input.review_key);
         if (!review) throw new Problem(409, 'This review page has expired. Reload before ending the review.');
+        if (review.retired) throw new Problem(409, 'This review page has expired. Reload before ending the review.');
         if (!review.ended) {
-          if (input.revision_id !== store.revisionId()) throw new Problem(409, 'The report changed. Review the latest revision before ending the session.');
+          if (review.generation !== reviewGeneration || input.revision_id !== store.revisionId()) {
+            review.retired = true;
+            throw new Problem(409, 'The report changed. Review the latest revision before ending the session.');
+          }
           // Resolve only the active respondent here; never send its handle to a page.
           if (relay.status().state === 'active') relay.disconnect({ session_id: relay.session.id });
           review.ended = true;
+          for (const sibling of reviews.values()) {
+            if (sibling !== review && sibling.generation === review.generation) sibling.retired = true;
+          }
+          reviewGeneration++;
         }
         return send(200, { ended: true });
       }

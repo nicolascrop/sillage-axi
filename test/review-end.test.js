@@ -56,7 +56,9 @@ test('reader end action preserves v1 data and state, rejects cross-origin/form/s
   assert.equal((await end(app, body, { headers: { 'Content-Type': 'application/json' } })).status, 415);
   assert.equal((await end(app, { ...body, session_id: session.session_id })).status, 400, 'no browser session-management input');
   assert.equal((await end(app, { ...body, review_key: 'unknown' })).status, 409);
-  assert.equal((await end(app, { ...body, revision_id: 99 })).status, 409);
+  const stalePage = await review(app);
+  assert.equal((await end(app, { ...stalePage, revision_id: 99 })).status, 409);
+  assert.equal((await end(app, stalePage)).status, 409);
   assert.equal(app.relay.session.id, session.session_id);
   // Existing disconnect semantics are not relaxed for browser access.
   assert.equal((await fetch(app.origin + '/api/agent/disconnect', { method: 'POST', headers, body: '{}' })).status, 409);
@@ -82,6 +84,37 @@ test('reader end action preserves v1 data and state, rejects cross-origin/form/s
   const noResponder = await review(app);
   assert.deepEqual(await (await end(app, noResponder)).json(), { ended: true });
   assert.deepEqual(await (await end(app, noResponder)).json(), { ended: true });
+});
+
+test('a stale end page cannot disconnect a replacement respondent on retry', async t => {
+  const app = await service(t);
+  const page = await review(app);
+  const original = app.relay.connect({ worker: 'original-author' });
+  app.store.importReport({ title: 'Updated', source: 'A new report revision.' });
+  const stale = await end(app, page);
+  assert.equal(stale.status, 409);
+  assert.equal(app.relay.session.id, original.session_id);
+  app.relay.disconnect(original);
+  const replacement = app.relay.connect({ worker: 'replacement-author' });
+  const retry = await end(app, { ...page, revision_id: app.store.revisionId() });
+  assert.equal(retry.status, 409);
+  assert.match((await retry.json()).error, /expired/);
+  assert.equal(app.relay.session.id, replacement.session_id);
+});
+
+test('ending one review page retires sibling pages before they can target a replacement', async t => {
+  const app = await service(t);
+  const page = await review(app);
+  const sibling = await review(app);
+  app.relay.connect({ worker: 'original-author' });
+  assert.deepEqual(await (await end(app, page)).json(), { ended: true });
+  const replacement = app.relay.connect({ worker: 'replacement-author' });
+  const result = await end(app, sibling);
+  assert.equal(result.status, 409);
+  assert.match((await result.json()).error, /expired/);
+  assert.equal(app.relay.session.id, replacement.session_id);
+  app.relay.disconnect(replacement);
+  assert.deepEqual(await (await end(app, await review(app))).json(), { ended: true });
 });
 
 test('the running JSONL respondent naturally detaches after the reader ends a review', async t => {

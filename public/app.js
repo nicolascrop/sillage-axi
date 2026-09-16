@@ -707,6 +707,7 @@ $('end-session').addEventListener('click', async () => {
   }
   const endingRevision = report?.id ?? null;
   endingReview = true;
+  whiteboards.beginEnd();
   $('layout').inert = true;
   $('workspace-switcher').inert = true;
   $('bubble').inert = true;
@@ -733,6 +734,7 @@ $('end-session').addEventListener('click', async () => {
     $('review-ended').hidden = false;
     $('review-ended-title').focus({ preventScroll: true });
   } catch (error) {
+    if (!reviewEnded) whiteboards.cancelEnd();
     notice(`Review could not end. ${error.message} Your review remains open; retry End session when ready.`);
   } finally {
     endingReview = false;

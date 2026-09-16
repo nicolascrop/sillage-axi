@@ -1195,6 +1195,43 @@ test('question dismissal crosses an active whiteboard iframe without disabling a
   assert.equal(ui.window.document.activeElement, frame);
 });
 
+test('historical whiteboard loads cannot append after End session begins', async t => {
+  const app = await service(t, '# Diagram\n\n```mermaid\nflowchart LR\n A-->B\n```');
+  const doc = app.store.current();
+  const diagram = doc.diagrams[0];
+  app.store.whiteboards.save(doc.id, diagram.block_id, {
+    source_hash: diagram.source_hash,
+    operation_key: 'historical-end-race',
+    expected_version: null,
+    text_metrics_version: 1,
+    scene: { elements: [], files: {}, appState: {} },
+    baseline: { elements: [] },
+  });
+  app.store.importReport({ title: 'Updated diagram context', source: '# Diagram\n\n```mermaid\nflowchart LR\n A-->B\n```\n\nUpdated context.' });
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  ui.$('whiteboard-history').open = true;
+  await waitFor(() => ui.$('whiteboard-history-list').querySelector('button'));
+  const normalFetch = ui.window.fetch;
+  const snapshotPath = `/api/whiteboards/${doc.id}/${diagram.block_id}`;
+  let releaseSnapshot, releaseEnd;
+  ui.window.fetch = (path, init) => {
+    if (path === snapshotPath) return new Promise(resolve => { releaseSnapshot = async () => resolve(await normalFetch(path, init)); });
+    if (path === '/review/end') return new Promise(resolve => { releaseEnd = async () => resolve(await normalFetch(path, init)); });
+    return normalFetch(path, init);
+  };
+  ui.$('whiteboard-history-list').querySelector('button').click();
+  await waitFor(() => releaseSnapshot);
+  ui.$('review-menu-toggle').click();
+  ui.$('end-session').click();
+  await waitFor(() => releaseEnd);
+  await releaseSnapshot();
+  assert.equal(ui.window.document.querySelector('.wb-enlarged'), null);
+  assert.equal([...ui.window.document.body.children].some(element => element.classList.contains('wb-host')), false);
+  await releaseEnd();
+  await waitFor(() => !ui.$('review-ended').hidden);
+});
+
 test('review menu uses keyboard focus, Escape, Tab, focus departure and outside dismissal without lifecycle effects', async t => {
   const app = await service(t);
   const session = app.relay.connect({ worker: 'menu-fixture' });
