@@ -687,6 +687,7 @@ document.addEventListener('click', event => {
   const samePassage = Boolean(bubble?.target) && nearestPassage(event.target) === bubble.target;
   const selectionCompletes = selectionHandled && samePassage
     && !event.target.closest?.('a,button,input,textarea,summary,.wb-host');
+  selectionHandled = selectionCompletes;
   dismissedSamePassage = Boolean(bubble && !$('bubble').contains(event.target) && samePassage && !selectionCompletes);
   if (bubble && !$('bubble').contains(event.target) &&
     !selectionCompletes) {

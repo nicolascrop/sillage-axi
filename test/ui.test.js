@@ -1130,6 +1130,22 @@ test('question light dismissal preserves inside clicks, outside focus, replaceme
   assert.equal(app.store.threads().length, 0);
 });
 
+test('selection completion is consumed by a bubble-internal click', async t => {
+  const app = await service(t);
+  const ui = await reader(app.origin);
+  t.after(() => ui.dom.window.close());
+  const paragraph = ui.$('report').querySelector('p');
+  const range = ui.window.document.createRange();
+  range.selectNodeContents(paragraph.querySelector('strong'));
+  ui.window.getSelection().addRange(range);
+  paragraph.dispatchEvent(new ui.window.MouseEvent('mouseup', { bubbles: true }));
+  paragraph.click();
+  assert.equal(ui.$('bubble').hidden, false);
+  ui.$('question').click();
+  paragraph.click();
+  assert.equal(ui.$('bubble').hidden, true);
+});
+
 test('selection completion does not exempt controls inside the selected passage', async t => {
   const app = await service(t, '# Heading\n\nAn exact **quoted** [link](https://example.com) passage.');
   const ui = await reader(app.origin);
