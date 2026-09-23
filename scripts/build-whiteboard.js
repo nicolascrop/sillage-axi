@@ -3,6 +3,7 @@ import { build } from 'esbuild';
 import { cp, mkdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { isEntry } from '../src/entry.js';
+import { mermaidCompatibility } from './mermaid-compatibility.js';
 const root = fileURLToPath(new URL('../', import.meta.url));
 export async function buildWhiteboard() {
   await mkdir(`${root}dist/whiteboard`, { recursive: true });
@@ -11,7 +12,7 @@ export async function buildWhiteboard() {
     conditions: ['production'], loader: { '.woff2': 'file', '.woff': 'file', '.ttf': 'file' },
     // Font registration runs during module evaluation, before frame main().
     banner: { js: 'window.EXCALIDRAW_ASSET_PATH = new URL("/whiteboard-assets/", location.href).href;' },
-    plugins: [{ name: 'local-font-fallback', setup(build) {
+    plugins: [mermaidCompatibility(), { name: 'local-font-fallback', setup(build) {
       let patched = 0;
       build.onEnd(() => { if (patched !== 1) throw new Error('Pinned Excalidraw font module changed; local fallback was not verified'); });
       build.onLoad({ filter: /@excalidraw\/excalidraw\/dist\/prod\/chunk-K2UTITRG\.js$/ }, async ({ path }) => {

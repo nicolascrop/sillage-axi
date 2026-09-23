@@ -94,11 +94,15 @@ helpers are adapted from that MIT implementation, not a separate custom editor.
 The converter may itself fall back to an image when a supported type cannot be
 parsed natively. The frame reports that mode honestly; the pinned native matrix is
 also exercised in a real browser so a dependency upgrade cannot silently turn
-supported diagrams into images. Preserve `@excalidraw/excalidraw` **0.18.1**,
-`@excalidraw/mermaid-to-excalidraw` **2.2.2**, `mermaid` **11.12.1**, React / React DOM
-**18.3.1**. Lavish documents native-conversion regressions with newer Mermaid
-internals. Dependency upgrades require a fresh native-conversion probe, not merely
-an npm range change. The lockfile pins the complete installation graph.
+supported diagrams into images. Current pins are `@excalidraw/excalidraw` **0.18.1**,
+`@excalidraw/mermaid-to-excalidraw` **2.2.2**, security-updated `mermaid` **11.17.2**,
+React / React DOM **18.3.1**. The [dependency security note](dependencies.md) records
+patched lodash-es/nanoid overrides and the exact-render-ID selector adapter needed
+by the older converter. DOM security prefixes are retained; source/scene provenance
+and fail-unmatched revision reconciliation do not change. Dependency upgrades
+require a fresh native-conversion probe, not merely an npm range change. The
+lockfile pins the complete installation graph. `npm run test:conversion:build`
+builds a synthetic file:// probe that needs no Sillage service or reader report.
 
 `regenerateIds: false` preserves Mermaid node/edge identity. Unlike Lavish's
 whole-scene randomization for upstream parallel-edge collisions, Sillage suffixes

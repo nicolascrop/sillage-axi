@@ -699,3 +699,71 @@ used. There is no model-inference, physical-touch/virtual-keyboard, screen-reade
 forced-colors or cross-browser certification claim. Whiteboard end races use
 controlled DOM frame channels; this pass does not expand the prior native editor
 conversion evidence. Remote publication/CI is the separate no-mistakes gate.
+
+## Node 22, dependency refresh and the Pi-owned respondent — 2026-09-23
+
+Candidate in isolated `fm/sillage-axi-node22-skill-agent-loop`, validated with
+Node **22.23.1**, npm **10.9.8**, installed Pi **0.87.1** and Headless Chrome **154**.
+No Sillage service was started, no private report was read/imported, and no live
+model/provider call was made. Shared configuration and credentials were untouched.
+
+```sh
+npm ci --ignore-scripts --offline --cache .npm-cache --no-audit --no-fund
+npm run test:no-service
+npm run check
+npm run build
+npm audit --omit=dev
+npm ls --all
+npm run test:conversion:build
+git diff --check
+```
+
+- **72 service-free tests passed** (59 + 9 + 4). The no-listen preload refuses
+  TCP/HTTP/Unix service startup. Coverage includes SQLite reopen, migrations,
+  original references, import replay/concurrency, leases, rendering, scene history,
+  local CLI installation/relocation and generated-skill freshness/portability.
+  The declared Node minimum is the tested **22.23.1**, not all earlier 22.x minors.
+  Syntax, production bundle/font safeguards and lockfile consistency pass; clean
+  `npm ci` leaves the lockfile SHA-256 unchanged. SQLite's experimental warning and
+  two upstream deprecation notices are not hidden. CI now has Node 22.23.1/24 jobs;
+  their remote result is a separate delivery gate.
+- Production audit: **10 affected packages (8 moderate, 2 high) → 0 reported**.
+  The [security note](dependencies.md) records pins, scoped overrides, advisory
+  references, limitations and mandatory first-start approval even after treatment.
+  No forced audit fix, ignored advisory or vulnerable parallel Mermaid pin remains.
+- A fresh **file://** browser probe, with no service/database, caught a real Mermaid
+  upgrade regression: subgraph flowcharts, class, ER and state diagrams became
+  images. The build adapter now translates old converter queries to the exact
+  render-ID scope, without removing DOM security prefixes or changing report/scene
+  provenance. Chrome verifies native subgraph/parallel flowcharts, sequence, class,
+  ER and state shapes; pie remains the intentional image fallback. Stable `A` and
+  both parallel arrows are asserted. Final probe console is empty; its network
+  list contains only the local HTML and bundled JavaScript. This is conversion
+  evidence, **not** a new full reader/editor layout or hostile-document CSP audit.
+- The installed AXI **0.1.29** CLI omits the `pageId` required by installed MCP
+  **1.10.1** and misparses titled page-list rows. After inspecting their documented
+  installed interfaces, validation used AXI's exported `callTool` through its own
+  named bridge, with explicit IDs from `list_pages` for `take_snapshot`,
+  `navigate_page`, `evaluate_script`, console and network. No raw CDP/alternate
+  browser automation, tool installation or shared browser lifecycle was used.
+- Respondent tests execute the actual JSONL bridge, relay and SQLite store with
+  an in-memory fetch transport (no listening socket). They save two successive
+  cited turns, preserve handoff/history, keep heartbeats while reasoning, reject
+  invalid citations/stale IDs, and terminate honestly on reader end, timeout,
+  expiry and competing presence. Pi integration tests exercise confirmation
+  refusal, one-shot-mode refusal, idle/follow-up scheduling, save acknowledgements,
+  private lease-token omission, session/model cleanup and a session-change race
+  during confirmation. They use synthetic replies, **not model inference**.
+- Actual `pi install <checkout> --local` into disposable worktree-local settings,
+  with an empty worktree-local agent directory and `PI_OFFLINE=1`, succeeded.
+  Pi's real resource loader discovered the existing single `sillage` skill and
+  extension without diagnostics. Its real tool-schema validator accepted all
+  three registered tools. No agent/model session was created. These checks caught
+  and corrected an unquoted YAML-description colon before delivery. The generated
+  skill stays under 5,000 characters and retains the historical path/aliases.
+
+Evidence stays in gitignored `.data/task/`, `.data/conversion-probe/` and disposable
+Pi settings directories. `npm test` and the HTTP/browser-reader suites were **not
+run under the explicit no-service-start hold**. Live respondent inference, native
+confirmation interaction and the first real presentation require separate approval;
+installation and heartbeats alone must never be reported as a working reasoner.

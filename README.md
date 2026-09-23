@@ -4,12 +4,24 @@ A small **local-only Markdown report reader** with a passage-linked conversation
 
 ## Run
 
-Requires **Node.js 24+** and npm. From this directory:
+Requires **Node.js 22.23.1+** (including Node 24) and npm. From this directory:
 
 ```sh
 npm ci --ignore-scripts
-npm start
+npm run check
+npm audit --omit=dev
 ```
+
+**Before the first start or report import**, review the [dependency advisories and
+current audit](docs/dependencies.md) and obtain explicit approval to proceed,
+**even if the audit now reports zero findings**. Download/installation is not startup
+consent. Only after that approval, run `npm start` or the explicit `serve` command.
+
+To say “use Sillage” with <https://github.com/nicolascrop/sillage-axi>, follow
+[the Pi installation/reuse and continuous-answering workflow](docs/pi.md).
+The existing [skill](skills/sillage/SKILL.md) and optional Pi extension install as
+one package. The respondent uses the already configured interactive Pi session;
+keep it open. Neither installing a skill nor an idle bridge is an active reasoner.
 
 Presenting a report includes supplying its Markdown/context and attaching the authoring agent (or its explicitly authorized delegate) through the local bridge before opening **http://127.0.0.1:3210**. The reader needs no import or connection setup. For a standalone fixture, use the explicit CLI import below with `examples/report.md`. Installing dependencies needs a registry connection once; starting the service builds its editor and fonts locally. Running the app, fake agent, and tests afterward needs **no internet or secrets**. There are no CDN assets or external image requests.
 
@@ -24,6 +36,7 @@ Run it again for each question; an empty queue prints `{"status":"idle"}`. This 
 ```sh
 npm test        # offline: local bundle, rendering, SQLite, HTTP, bridge and reader DOM tests
 npm run check  # JavaScript syntax and generated-skill freshness checks
+npm run test:no-service # Node 22 validation when service startup is not authorized
 npm run build  # optional explicit local Excalidraw/MD-to-diagram asset build
 ```
 

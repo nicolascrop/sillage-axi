@@ -4,6 +4,17 @@ Sillage AXI does not ship a model, select a provider, start a reasoner, or execu
 
 The reader contains no setup controls. Normal listening is invisible; a real interruption or failed reply surfaces an alert directing the reader back to the original authoring conversation. Questions remain durable. Session IDs are ephemeral relay handles, not local-user authentication. Only one service per database is supported.
 
+## Pi-owned continuous loop
+
+The opt-in [Pi package workflow](pi.md) reuses the current configured interactive
+Pi agent. Its extension owns this same JSONL bridge and wakes that agent for each
+request; it does not select a provider or launch another reasoner. It requires
+explicit connection confirmation and stops on session/model changes. The first
+service start/import still requires [dependency-review approval](dependencies.md),
+even with a zero-finding audit. Loading the package alone does nothing beyond
+registration; keep the answering session open and never advertise an idle bridge
+as an active respondent.
+
 ## Presenting an agent-authored report
 
 When the reader asks the agent to present a report it just authored:

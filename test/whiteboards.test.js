@@ -135,8 +135,8 @@ test('HTTP confines opaque frame assets, denies API cross-origin writes and bind
   assert.equal((await call(path, large)).status, 201, 'whiteboard writes alone get the 20 MB boundary');
 });
 
-test('installed conversion graph resolves the exact Lavish native-conversion pins', () => {
-  const pins = { mermaid: '11.12.1', '@excalidraw/excalidraw': '0.18.1', '@excalidraw/mermaid-to-excalidraw': '2.2.2', react: '18.3.1', 'react-dom': '18.3.1' };
+test('installed conversion graph resolves the security-updated native-conversion pins', () => {
+  const pins = { mermaid: '11.17.2', '@excalidraw/excalidraw': '0.18.1', '@excalidraw/mermaid-to-excalidraw': '2.2.2', react: '18.3.1', 'react-dom': '18.3.1' };
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
   const lock = JSON.parse(readFileSync(new URL('../package-lock.json', import.meta.url)));
   for (const [name, version] of Object.entries(pins)) {
