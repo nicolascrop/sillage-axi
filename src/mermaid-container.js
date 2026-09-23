@@ -11,14 +11,15 @@ export function mermaidContainer(container, renderId) {
   const prefix = `${renderId}-`;
   const scoped = selector => selector
     .replace(/\[id=(["'])(.*?)\1\]/g, (_match, quote, id) => `[id=${quote}${prefix}${id}${quote}]`)
+    .replace(/\[id\^=(["'])(.*?)\1\]/g, (_match, quote, id) => `[id^=${quote}${prefix}${id}${quote}]`)
     .replace(/(^|[\s>,])#([\w-]+)/g, (_match, before, id) => `${before}#${prefix}${id}`);
   const one = container.querySelector.bind(container);
   const all = container.querySelectorAll.bind(container);
   // Keep container identity for the converter's parent/transform traversal.
-  container.querySelector = selector => one(selector) || one(scoped(selector));
+  container.querySelector = selector => one(scoped(selector)) || one(selector);
   container.querySelectorAll = selector => {
-    const result = all(selector);
-    return result.length ? result : all(scoped(selector));
+    const result = all(scoped(selector));
+    return result.length ? result : all(selector);
   };
   return container;
 }

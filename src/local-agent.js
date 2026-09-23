@@ -15,8 +15,11 @@ export async function runLocalAgent({ base = 'http://127.0.0.1:3210', input = pr
   const tick = async () => {
     await post('/api/agent/heartbeat', session);
     if (pending && pending.lease_until <= Date.now()) {
+      stopped = true;
+      clearInterval(timer);
       emit({ type: 'expired', request_id: pending.request_id });
       pending = null;
+      return;
     }
     if (!pending && !stopped) {
       const result = await post('/api/agent/reserve', session);

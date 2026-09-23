@@ -178,6 +178,32 @@ test('an expired request disconnects rather than keeping a non-answering reasone
   await assert.rejects(respondent.answer(reply({ ...request, document: { id: 1 }, block: { id: 'original' }, quote: 'Exact' })), /No live request/);
 });
 
+test('an expired bridge request leaves the next queued question waiting', async t => {
+  let reserves = 0;
+  const requests = [];
+  t.mock.method(globalThis, 'fetch', async target => {
+    const path = new URL(target).pathname;
+    if (path.endsWith('/connect')) return Response.json({ session_id: 'session', state: 'active', worker: 'test' });
+    if (path.endsWith('/heartbeat')) return Response.json({ state: 'active' });
+    if (path.endsWith('/reserve')) {
+      reserves++;
+      const request = reserves === 1
+        ? { request_id: 'expires', lease_until: Date.now() - 1 }
+        : { request_id: 'queued-after-expiry', lease_until: Date.now() + 120_000 };
+      return Response.json({ request });
+    }
+    if (path.endsWith('/disconnect')) return Response.json({ state: 'unavailable' });
+    throw new Error(`Unexpected bridge path ${path}`);
+  });
+  const respondent = new PiRespondent({ bridge: options => runLocalAgent({ ...options, interval: 5 }), onRequest: request => requests.push(request) });
+  t.after(() => respondent.disconnect());
+  await respondent.connect({ scope, url });
+  await wait(() => reserves === 1);
+  await wait(() => respondent.state === 'stopped');
+  assert.equal(requests.length, 1);
+  assert.equal(reserves, 1);
+});
+
 test('a session change during the confirmation dialog cannot attach the old owner', async () => {
   const h = host(); let approve, connects = 0;
   h.ctx.ui.confirm = () => new Promise(resolve => { approve = resolve; });

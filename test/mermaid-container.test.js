@@ -20,3 +20,11 @@ test('converter selector adapter retains security-scoped DOM IDs and never cross
   assert.equal(unscopedMermaidId('render-1-classId-Duck-4', container.id), 'classId-Duck-4');
   assert.equal(unscopedMermaidId('other-classId-Duck-4', container.id), 'other-classId-Duck-4');
 });
+
+test('converter selector adapter scopes ID-prefix filters before fallback', t => {
+  const dom = new JSDOM('<div id="render-2-container"><svg><g class="edgePaths"><path id="render-2-edgeNote1" data-edge="true"></path><path id="render-2-relation1" data-edge="true"></path></g></svg></div>');
+  t.after(() => dom.window.close());
+  const container = mermaidContainer(dom.window.document.querySelector('div'), 'render-2');
+  const paths = container.querySelectorAll('.edgePaths path[data-edge="true"]:not([id^="edgeNote"])');
+  assert.deepEqual([...paths].map(path => path.id), ['render-2-relation1']);
+});
