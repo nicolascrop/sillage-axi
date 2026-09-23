@@ -158,8 +158,9 @@ test('Pi integration wakes the existing loop twice, requires confirmation, and c
 
 test('an expired request disconnects rather than keeping a non-answering reasoner advertised', async () => {
   let emit;
+  let requests = 0;
   const request = { request_id: 'expires', lease_until: Date.now() + 120_000 };
-  const respondent = new PiRespondent({ onRequest() {}, bridge: async ({ input, output }) => {
+  const respondent = new PiRespondent({ onRequest() { requests++; }, bridge: async ({ input, output }) => {
     emit = value => output.write(JSON.stringify(value) + '\n');
     for await (const line of createInterface({ input })) {
       if (JSON.parse(line).type === 'ready') emit({ type: 'connected' });
@@ -169,7 +170,10 @@ test('an expired request disconnects rather than keeping a non-answering reasone
   await respondent.connect({ scope, url });
   emit({ type: 'request', request });
   assert.equal(respondent.state, 'answering');
+  assert.equal(requests, 1);
   emit({ type: 'expired', request_id: request.request_id });
+  emit({ type: 'request', request: { ...request, request_id: 'queued-after-expiry' } });
+  assert.equal(requests, 1);
   await wait(() => respondent.state === 'stopped');
   await assert.rejects(respondent.answer(reply({ ...request, document: { id: 1 }, block: { id: 'original' }, quote: 'Exact' })), /No live request/);
 });

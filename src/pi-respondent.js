@@ -41,6 +41,7 @@ export class PiRespondent {
       try { this.onRequest(value.request); }
       catch (error) { this.reject(error); this.input.end(); }
     } else if (value.type === 'expired') {
+      this.closing = true;
       this.pending = null;
       this.reject(new Error('Answer lease expired; the saved failure cannot be replaced'));
       // Do not keep advertising a reasoner that missed its answering deadline.
