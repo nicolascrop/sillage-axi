@@ -25,7 +25,7 @@ ${safety.map(value => `- ${value}`).join('\n')}
 
 ## Local installation and discovery
 
-Use an already-installed ${productName} checkout with Node 24+ and dependencies.
+Use an already-installed ${productName} checkout with Node 22.13+ and dependencies.
 If its location is unknown, ask; never download implicitly. No global bin is needed:
 
 \`\`\`sh

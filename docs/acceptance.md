@@ -699,3 +699,53 @@ used. There is no model-inference, physical-touch/virtual-keyboard, screen-reade
 forced-colors or cross-browser certification claim. Whiteboard end races use
 controlled DOM frame channels; this pass does not expand the prior native editor
 conversion evidence. Remote publication/CI is the separate no-mistakes gate.
+
+## Node 22 and dependency audit — 2026-09-24
+
+Starting from the clean default-branch revision `2e25b1a` on Node **22.23.1**,
+npm **10.9.8**, `npm ci --ignore-scripts --no-audit --no-fund` succeeded but
+reported `EBADENGINE` for Sillage's own `>=24.0.0` declaration. All **141**
+existing tests (including the local editor build) and `npm run check` already
+passed. `node:sqlite` emitted an **ExperimentalWarning** on Node 22; it was not
+a test failure. An offline cache-only reinstall initially failed with
+`ENOTCACHED` for `nanoid@4.0.2` (missing local tarball), not a Node runtime
+failure; a normal explicit registry-backed `npm ci` succeeded. Tests/build
+remained offline afterward, apart from synthetic loopback requests.
+
+The committed change lowers the engine floor to **22.13.0**, and adds Node 22
+to CI alongside 24. The local executable test is on **22.23.1**; neither the
+exact lower floor nor all Node 22 patch versions were tested separately.
+`npm ci --ignore-scripts`, focused whiteboard checks, `npm test` and
+`npm run check` validate the installed patched graph on Node 22; CI is now
+configured to validate both supported major lines. No SQLite fallback, provider or remote runtime
+resource was added.
+
+| `npm audit --json` on the same default-branch base, same registry | High | Moderate | Total |
+| --- | ---: | ---: | ---: |
+| Before (Mermaid 11.12.1 / vulnerable `nanoid` and `lodash-es`) | 2 | 8 | 10 |
+| After lockfile overrides, retaining Mermaid 11.12.1 | 0 | 1 | 1 |
+
+The lockfile now resolves Excalidraw's v3 `nanoid` to **3.3.18** (rather than
+3.3.3), the converter's v4 `nanoid` to **5.1.16** (rather than 4.0.2), and
+`lodash-es` to **4.18.1** (rather than 4.17.21). The focused dependency-graph
+test asserts these installed and locked versions, including the absence of a
+nested vulnerable Excalidraw `nanoid`. A local Chrome probe via
+`chrome-devtools-axi` exercised the actual bundled editor under Node 22 with
+synthetic reports: subgraph/parallel-edge flowcharts, sequence, class, ER and
+state diagrams all saved **native** shapes with unique IDs; a pie chart retained
+its explicitly labeled image fallback. Stable node `A` and two parallel arrows
+were checked. The AXI CLI's `snapshot` dropped `pageId`; the installed AXI
+`callTool` export with the fixture tab's freshly resolved page ID succeeded.
+No private report/service, model inference or remote browser resource was used.
+The probe did not retest all browser editing/geometry/security behavior.
+
+**Remaining risk:** `npm audit` still reports one **moderate** `mermaid`
+package entry (covering multiple Mermaid parser/sanitization/DoS advisories).
+The audit currently offers **11.17.2** as a fix; Sillage retains **11.12.1**
+because the [pinned whiteboard conversion contract](whiteboards.md#lavish-implementation-evidence-and-conversion-matrix)
+warns newer Mermaid internals can regress native shapes. This is a documented
+compatibility/security tradeoff, **not** a claim of zero vulnerabilities or
+proof that the opaque sandbox neutralizes malicious diagrams. Reconsider the
+upgrade with a fresh complete native-conversion and resource-isolation probe.
+Audit advisories and package availability change over time; the counts above
+are point-in-time observations, not a permanent guarantee.

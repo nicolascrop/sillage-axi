@@ -146,6 +146,24 @@ test('installed conversion graph resolves the exact Lavish native-conversion pin
   }
 });
 
+test('whiteboard transitive overrides retain patched nanoid/lodash without changing native conversion pins', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
+  const lock = JSON.parse(readFileSync(new URL('../package-lock.json', import.meta.url)));
+  assert.equal(pkg.overrides.nanoid, '3.3.18');
+  assert.equal(pkg.overrides['@excalidraw/mermaid-to-excalidraw'].nanoid, '5.1.16');
+  assert.equal(pkg.overrides['lodash-es'], '4.18.1');
+  for (const [path, version] of Object.entries({
+    'nanoid': '3.3.18',
+    '@excalidraw/mermaid-to-excalidraw/node_modules/nanoid': '5.1.16',
+    'lodash-es': '4.18.1',
+  })) {
+    assert.equal(lock.packages['node_modules/' + path].version, version);
+    assert.equal(JSON.parse(readFileSync(new URL('../node_modules/' + path + '/package.json', import.meta.url))).version, version);
+  }
+  assert.equal(lock.packages['node_modules/@excalidraw/excalidraw/node_modules/nanoid'], undefined,
+    'Excalidraw must resolve the patched v3 nanoid, not its vulnerable nested v3.3.3 copy');
+});
+
 test('versioned saved-font repair permits expansion only, without dropping annotation baseline or content', t => {
   const { wb, doc, id } = fixture(t);
   const label = { id: 'label', type: 'text', x: 0, y: 0, width: 40, height: 20, text: 'Original text' };

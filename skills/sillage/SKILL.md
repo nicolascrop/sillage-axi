@@ -24,7 +24,7 @@ The primary product command is `sillage-axi`; the compatibility command is
 
 ## Local installation and discovery
 
-Use an already-installed Sillage AXI checkout with Node 24+ and dependencies.
+Use an already-installed Sillage AXI checkout with Node 22.13+ and dependencies.
 If its location is unknown, ask; never download implicitly. No global bin is needed:
 
 ```sh
