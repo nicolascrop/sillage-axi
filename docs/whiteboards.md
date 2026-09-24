@@ -160,8 +160,15 @@ Scene writes alone accept up to **20 MB**, 5,000 elements, 128 embedded images,
 2 MB. No automatic history deletion/compaction is introduced. Very large or
 malicious diagrams can still exhaust browser/parser resources; this prototype is
 not a hostile-document availability sandbox. Conversion-library audit advisories
-are not erased by a compatibility pin: keep the sandbox/local-resource boundary,
-and re-probe supported shapes before changing the pinned Mermaid internals.
+are not erased by a compatibility pin. The lockfile overrides Excalidraw's `nanoid` **3.3.3** with patched **3.3.18**,
+mermaid-to-excalidraw's `nanoid` **4.0.2** with patched **5.1.16**, and
+`lodash-es` **4.17.21** with patched **4.18.1**. The converter's v4 → v5
+`nanoid` override retains native shape output in the
+[Node 22 browser probe](acceptance.md#node-22-and-dependency-audit--2026-09-24).
+Mermaid **11.12.1** still has npm advisories; its suggested **11.17.2**
+update changes conversion internals and is not assumed safe without a new native
+matrix probe. The opaque sandbox and local-resource boundary reduce exposure but
+do not fix vulnerable parsing or guarantee resilience to hostile diagrams.
 
 See [agent protocol](agent-protocol.md#whiteboard-api-and-feedback) for endpoints and
 [acceptance evidence](acceptance.md) for executed checks and browser limitations.
