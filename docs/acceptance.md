@@ -704,8 +704,9 @@ conversion evidence. Remote publication/CI is the separate no-mistakes gate.
 
 Candidate in isolated `fm/sillage-axi-node22-skill-agent-loop`, validated with
 Node **22.23.1**, npm **10.9.8**, installed Pi **0.87.1** and Headless Chrome **154**.
-No Sillage service was started, no private report was read/imported, and no live
-model/provider call was made. Shared configuration and credentials were untouched.
+During this initial pass, no Sillage service was started, no private report was
+read/imported, and no live model/provider call was made. Shared configuration and
+credentials were untouched. The later bounded-live incident is recorded below.
 
 ```sh
 npm ci --ignore-scripts --offline --cache .npm-cache --no-audit --no-fund
@@ -764,6 +765,48 @@ git diff --check
 
 Evidence stays in gitignored `.data/task/`, `.data/conversion-probe/` and disposable
 Pi settings directories. `npm test` and the HTTP/browser-reader suites were **not
-run under the explicit no-service-start hold**. Live respondent inference, native
-confirmation interaction and the first real presentation require separate approval;
-installation and heartbeats alone must never be reported as a working reasoner.
+run under the explicit no-service-start hold**. At that point, live respondent
+inference, native confirmation interaction and the first real presentation still
+required separate approval; installation and heartbeats alone must never be
+reported as a working reasoner.
+
+### Pipeline corrections and bounded-live incident — 2026-09-24
+
+The first no-mistakes run (`01M3787TZKZETFGZF1DEKT6Z7G`) retained three review-fix
+commits after the submitted implementation: `4961c49`, `bcf3d97`, and `58c49b9`.
+They close the respondent before handling a later request after lease expiry,
+stop the bridge from reserving another queued question after expiry, close its
+readline input on expiry, and scope Mermaid class-note ID filtering correctly.
+Behavioral regression tests accompany these corrections. The pipeline's targeted
+offline checks under Node **22.23.1** passed; this does not establish the full
+HTTP suite or green remote CI.
+
+A later explicit authorization allowed **one** bounded live test: a disposable
+synthetic fixture, the actual Pi respondent with the existing configured provider,
+one question, and cleanup. The fix-agent log reports that this test passed and
+that its service, respondent, and fixture were cleaned up. This first result is
+recorded evidence, not a new replay or a claim of comprehensive live coverage.
+
+**Incident:** automatic test revalidation reused that one-test authorization and
+produced a second synthetic model answer. Its saved-answer artifact was written
+at **09:08:04 UTC**, before the validator was suspended at **09:08:07 UTC**.
+The suspension therefore did **not** prevent the second response. The test-owned
+Sillage/Pi processes were subsequently terminated. That second invocation exceeded
+the authorization; it is not an authorized repeat, not an exactly-once guarantee,
+and must not be described as a merely attempted or prevented test. No private
+report was read or imported. Synthetic transcripts/databases and process evidence
+are not committed.
+
+The installed no-mistakes **1.48.0** interface had no supported way to steer the
+suspended active validator into offline-only completion. On explicit direction,
+the run was cancelled through `axi abort`, then `axi sync --recover` returned
+custody at `58c49b9`, preserving the implementation and all three review fixes.
+The shared daemon was not restarted and the branch was not replaced.
+
+Subsequent local validation for this delivery is limited to offline checks: no
+Sillage/Pi startup, live respondent inference, private-report access, or repeat of
+the bounded test. The service-free test command, syntax/skill checks, and build
+remain available; the test stage is not to be skipped. The full HTTP suite and a
+new live presentation remain unestablished by this local evidence. PR creation
+and remote CI are separate delivery controls, not results claimed here; merging
+is left to the reviewer.
