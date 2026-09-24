@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { realpathSync } from 'node:fs';
 import { createInterface } from 'node:readline';
+import { PassThrough } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Store } from '../src/store.js';
 import { LocalRelay } from '../src/relay.js';
@@ -202,6 +203,46 @@ test('an expired bridge request leaves the next queued question waiting', async 
   await wait(() => respondent.state === 'stopped');
   assert.equal(requests.length, 1);
   assert.equal(reserves, 1);
+});
+
+test('a direct bridge disconnects after expiry without waiting for input EOF', async t => {
+  let reserves = 0;
+  let disconnects = 0;
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const events = [];
+  let partial = '';
+  output.on('data', chunk => {
+    partial += chunk;
+    let end;
+    while ((end = partial.indexOf('\n')) !== -1) {
+      events.push(JSON.parse(partial.slice(0, end)));
+      partial = partial.slice(end + 1);
+    }
+  });
+  t.mock.method(globalThis, 'fetch', async target => {
+    const path = new URL(target).pathname;
+    if (path.endsWith('/connect')) return Response.json({ session_id: 'session', state: 'active', worker: 'test' });
+    if (path.endsWith('/heartbeat')) return Response.json({ state: 'active' });
+    if (path.endsWith('/reserve')) {
+      reserves++;
+      return Response.json({ request: { request_id: 'expires', lease_until: Date.now() - 1 } });
+    }
+    if (path.endsWith('/disconnect')) {
+      disconnects++;
+      return Response.json({ state: 'unavailable' });
+    }
+    throw new Error(`Unexpected bridge path ${path}`);
+  });
+  const running = runLocalAgent({ base: url, scope, input, output, interval: 5 });
+  t.after(async () => { input.end(); await running; output.destroy(); });
+  input.write(JSON.stringify({ type: 'ready', worker: 'direct-expiry' }) + '\n');
+  await wait(() => events.some(event => event.type === 'expired'));
+  const finished = await Promise.race([running.then(() => true), delay(100).then(() => false)]);
+  assert.equal(finished, true);
+  assert.equal(reserves, 1);
+  assert.equal(disconnects, 1);
+  assert.deepEqual(events.map(event => event.type), ['ready-required', 'connected', 'request', 'expired', 'stopped']);
 });
 
 test('a session change during the confirmation dialog cannot attach the old owner', async () => {

@@ -17,6 +17,7 @@ export async function runLocalAgent({ base = 'http://127.0.0.1:3210', input = pr
     if (pending && pending.lease_until <= Date.now()) {
       stopped = true;
       clearInterval(timer);
+      lines.close();
       emit({ type: 'expired', request_id: pending.request_id });
       pending = null;
       return;
